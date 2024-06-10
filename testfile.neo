@@ -1,0 +1,8 @@
+< This is the neolang interpreter testfile.
+  This is a comment block. Everything within
+  the signs is treated as comments. >
+
+main() -> i32:
+	ret 0;
+
+
