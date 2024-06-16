@@ -1,7 +1,6 @@
 #include "token_types.h"
 
 #include <ctype.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -18,106 +17,90 @@ const char* GetTypeDebugName(TokenType Type) { return s_TokenDebugNames[Type]; }
 #include "sub_types.h"
 
 Token TryGetKeyword(const char* Str) {
-    Token    Token   = { .Subtype = malloc(sizeof(KeyTypes)) };
-    KeyTypes Subtype = GetKeySubtype(Str);
+    Token    Token   = { 0 };
+    KeyTypes SubType = GetKeySubtype(Str);
 
-    if (Subtype == _KEY_INVALID) { return Token; }
+    if (SubType == _KEY_INVALID) { return Token; }
 
-    Token.Type                  = _KEY;
-    *(KeyTypes*)(Token.Subtype) = Subtype;
+    Token.BroadType = _KEY;
+    Token.SubType   = malloc(sizeof(u32));
+    Token.SubType   = (void*)SubType;
 
-    Token.Value                 = malloc(strlen(Str) * sizeof(char));
+    Token.Value     = malloc(strlen(Str) * sizeof(char));
     strcpy((char*)Token.Value, Str);
     return Token;
 }
 
 Token TryGetOperator(const char* Str) {
-    Token Token = { .Subtype = malloc(sizeof(OpTypes)) };
+    Token   Token   = { 0 };
+    OpTypes SubType = GetOperatorSubtype(Str[0]);
 
-    // hard limit of 1 character
-    if (strlen(Str) != 1) { return Token; }
+    if (SubType == _OP_INVALID) { return Token; }
 
-    OpTypes Subtype = GetOperatorSubtype(Str[0]);
-    if (Subtype == _OP_INVALID) { return Token; }
+    Token.BroadType = _OP;
+    Token.SubType   = malloc(sizeof(u32));
+    Token.SubType   = (void*)SubType;
 
-    Token.Type                 = _OP;
-    *(OpTypes*)(Token.Subtype) = Subtype;
-
-    Token.Value                = malloc(strlen(Str) * sizeof(char));
+    Token.Value     = malloc(strlen(Str) * sizeof(char));
     strcpy((char*)Token.Value, Str);
 
     return Token;
 }
 
 Token TryGetSpecial(const char* Str) {
-    Token     Token   = { .Subtype = malloc(sizeof(SpecTypes)) };
-    SpecTypes Subtype = GetSpecialSubtype(Str[0]);
+    Token     Token   = { 0 };
+    SpecTypes SubType = GetSpecialSubtype(Str[0]);
 
-    if (Subtype == _SPEC_INVALID) { return Token; }
+    if (SubType == _SPEC_INVALID) { return Token; }
 
-    Token.Type                   = _SPEC;
-    *(SpecTypes*)(Token.Subtype) = Subtype;
+    Token.BroadType = _SPEC;
+    Token.SubType   = malloc(sizeof(u32));
+    Token.SubType   = (void*)SubType;
 
-    Token.Value                  = malloc(strlen(Str) * sizeof(char));
+    Token.Value     = malloc(strlen(Str) * sizeof(char));
     strcpy((char*)Token.Value, Str);
 
     return Token;
 }
 
 Token TryGetNumericLiteral(const char* Str) {
-    Token Token                    = { .Subtype = malloc(sizeof(NumLitTypes)) };
-    *(NumLitTypes*)(Token.Subtype) = _NUMLIT_INT;
+    Token Token              = { 0 };
+    Token.SubType            = malloc(sizeof(u32));
+    Token.SubType            = (void*)_NUMLIT_INT;
 
-    b8 MultipleDecimalPoints       = false;
-
+    b8 MultipleDecimalPoints = false;
     for (u64 i = 0; i < strlen(Str); ++i) {
-        if (isdigit(Str[i])) { continue; }
-
-        // sign character allowed
-        if (i == 0 && strlen(Str) > 1 && Str[0] == '-') { continue; }
-
-        // floating point value can't have multiple
-        // decimal points.
-        if (Str[i] == '.' || Str[i] == ',') {
-            if (MultipleDecimalPoints) {
-                fputs(
-                    "TokenError: Floating point numeric literal with multiple decimal "
-                    "points.\n",
-                    stderr
-                );
+        if (!isdigit(Str[i])) {
+            // floating point value can't have multiple
+            // decimal points.
+            if (!MultipleDecimalPoints && Str[i] == '.') {
+                MultipleDecimalPoints = true;
+                Token.SubType         = (void*)_NUMLIT_FLOAT;
+            } else {
                 return Token;
             }
-
-            MultipleDecimalPoints          = true;
-            *(NumLitTypes*)(Token.Subtype) = _NUMLIT_FLOAT;
-        } else {
-            return Token;
         }
     }
 
-    Token.Value = malloc(strlen(Str) * sizeof(char));
+    Token.Value = malloc(sizeof(u64));
     strcpy((char*)Token.Value, Str);
-    Token.Type = _NUMLIT;
+    Token.BroadType = _NUMLIT;
 
     return Token;
 }
 
 Token TryGetStringLiteral(const char* Str) {
-    // no subtypes
-    Token Token = { .Subtype = malloc(1) };
-
+    Token Token = { 0 };
     if (Str[0] == '"' && Str[strlen(Str) - 1] == '"') {
         Token.Value = malloc(strlen(Str) * sizeof(char));
         strcpy((char*)Token.Value, Str);
-        Token.Type = _STRLIT;
+        Token.BroadType = _STRLIT;
     }
     return Token;
 }
 
 Token TryGetIdentifier(const char* Str) {
-    // no subtypes
-    Token Token = { .Subtype = malloc(1) };
-
+    Token Token = { 0 };
     if (!isalpha(Str[0])) { return Token; }
 
     for (u64 i = 0; i < strlen(Str); ++i) {
@@ -126,7 +109,7 @@ Token TryGetIdentifier(const char* Str) {
 
     Token.Value = malloc(strlen(Str) * sizeof(char));
     strcpy((char*)Token.Value, Str);
-    Token.Type = _ID;
+    Token.BroadType = _ID;
 
     return Token;
 }

@@ -16,17 +16,12 @@ typedef enum TokenType {
 TokenType   Classify(const char* Str);
 const char* GetTypeDebugName(TokenType Type);
 
-/**
- * @class Token
- * @brief Token struct
- */
 typedef struct Token {
-    /** @brief */
-    void* Value;
-    /** @brief Underlying subtype, i.e; Type: _OP, Subtype: _OP_ADD */
-    void* Subtype;
-    /** @brief Overall type of token */
-    TokenType Type;
+    void*     Value;
+    void*     SubType;
+    TokenType BroadType;
+    u64       Line;
+    u64       Character;
 } Token;
 
 Token TryGetKeyword(const char* Str);

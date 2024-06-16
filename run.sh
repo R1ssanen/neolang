@@ -1,4 +1,6 @@
-#! bin/bash
+#! usr/sbin/bash
 
-build/neolang testfile.neo
+cd build/
+./neolang ../testfile.neo
+cd ../
 

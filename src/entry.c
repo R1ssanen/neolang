@@ -55,12 +55,11 @@ i32 main(i32 argc, char** argv) {
         Token Token = Tokens[i];
 
         printf(
-            "\tType: %-7s Subtype: 0x%-7X Value: %-7s\n", GetTypeDebugName(Token.Type),
-            *(u32*)(Token.Subtype), (char*)Token.Value
+            "\tToken: %-10s Value: %-10s\n", GetTypeDebugName(Token.BroadType), (char*)Token.Value
         );
 
-        if (Token.Value) { free(Token.Value); }
-        if (Token.Subtype) { free(Token.Subtype); }
+        free(Token.Value);
+        // free(Token.SubType);
     }
 
     free(Source);

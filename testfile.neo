@@ -16,15 +16,9 @@ main(i32: argc, i8[][]: argv) -> i32:
   	  mark its end. $
 
 	if true:
-		ret "string";	
+		ret -1;	
 
-	ret -.4;
-
-
-
-main(i32:
-
-
+	ret 0;
 
 
 
