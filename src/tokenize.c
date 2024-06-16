@@ -62,7 +62,7 @@ b8 Tokenize(const char* Source, u64 SourceLen, Token* pTokens, u64* pTokensLen) 
 
         // bite is already a token
         Token PreToken = TryGetToken(Bite);
-        if (PreToken.BroadType != _INVALID) {
+        if (PreToken.Type != _INVALID) {
             pTokens[(*pTokensLen)++] = PreToken;
             continue;
         }
@@ -91,6 +91,16 @@ b8 Tokenize(const char* Source, u64 SourceLen, Token* pTokens, u64* pTokensLen) 
             ++Result;
             LastSpecIndex = SpecIndex + 1;
         }
+
+        // no special characters found
+        if (LastSpecIndex == 0) {
+            for (u64 i = 0; i < BiteLength; ++i) {
+                char  Str[2] = { Bite[i], '\0' };
+                Token Token  = TryGetToken(Str);
+
+                if (Token.Type != _INVALID) { pTokens[(*pTokensLen)++] = Token; }
+            }
+        }
     }
 
     DestroyArray(Bites);
@@ -98,10 +108,11 @@ b8 Tokenize(const char* Source, u64 SourceLen, Token* pTokens, u64* pTokensLen) 
 }
 
 // order of operations matters,
-// keywords must be tested before identifiers
-static Token (*PFNTokenGetters[6])(const char*) = { TryGetKeyword,       TryGetSpecial,
-                                                    TryGetOperator,      TryGetNumericLiteral,
-                                                    TryGetStringLiteral, TryGetIdentifier };
+// keywords must be tested before identifiers,
+// numeric literal before operator
+static Token (*PFNTokenGetters[6])(const char*) = { TryGetKeyword,        TryGetSpecial,
+                                                    TryGetNumericLiteral, TryGetOperator,
+                                                    TryGetStringLiteral,  TryGetIdentifier };
 
 Token TryGetToken(const char* Str) {
     Token Token = { 0 };
@@ -109,7 +120,7 @@ Token TryGetToken(const char* Str) {
     // find first token type that is valid
     for (u64 i = 0; i < 6; ++i) {
         Token = PFNTokenGetters[i](Str);
-        if (Token.BroadType != _INVALID) { return Token; }
+        if (Token.Type != _INVALID) { return Token; }
     }
 
     return Token;
