@@ -1,16 +1,14 @@
 #include <stdio.h>
-#include <uchar.h>
+#include <stdlib.h>
 
 #include "tokenize.h"
 #include "types.h"
 
 i32 main(i32 argc, char** argv) {
-    // REMOVE LATER!
-    argc    = 2;
-    argv[1] = "../../testfile.neo";
-
     if (argc <= 1) {
-        fputs("No source file to interpret. \nUsage:\tneolang [FILE_TO_INTERPRET]\n", stderr);
+        fputs(
+            "Error: No source file to interpret. \nUsage:\tneolang [FILE_TO_INTERPRET]\n", stderr
+        );
         return -1;
     }
 
@@ -18,36 +16,53 @@ i32 main(i32 argc, char** argv) {
     FILE*       pFile     = fopen(pFileName, "r");
 
     if (!pFile) {
-        fprintf(stderr, "Could not open source file '%s', it may not exist.\n", pFileName);
+        fprintf(stderr, "Error: Could not open source file '%s', it may not exist.\n", pFileName);
         return -1;
     }
 
-    const u64 MAX_SOURCE_LEN = 1000000;
-    char      pSources[MAX_SOURCE_LEN + 1];
+    // get file length
+    u64 FileLen = 0;
+    fseek(pFile, 0, SEEK_END);
+    FileLen = ftell(pFile);
+    fseek(pFile, 0, SEEK_SET);
 
-    u64       NewLen = fread(pSources, sizeof(char), MAX_SOURCE_LEN, pFile);
+    // read file into buffer
+    char* Source = malloc(FileLen + 1);
+    fread(Source, sizeof(char), FileLen, pFile);
+
     if (ferror(pFile) != 0) {
-        fputs("Error reading file", stderr);
+        fprintf(stderr, "Error: Cannot read file '%s'.\n", pFileName);
         return -1;
     }
 
-    pSources[NewLen++] = '\0'; /* Just to be safe. */
     fclose(pFile);
+
+    // null terminating just to be safe
+    Source[FileLen - 1]  = '\0';
 
     const u64 MAX_TOKENS = 100000;
     u64       TokensLen  = 0;
     Token     Tokens[MAX_TOKENS];
 
     puts("Begin tokenization...");
-    if (!Tokenize(pSources, NewLen, Tokens, &TokensLen)) {
-        fputs("Tokenization failed.", stderr);
+    if (!Tokenize((const char*)Source, FileLen, Tokens, &TokensLen)) {
+        fputs("Error: Tokenization failed.\n", stderr);
         return -1;
     }
 
-    puts("Tokenization complete.");
-    puts("\nSource tokens:");
+    puts("Tokenization complete.\nSource tokens:");
+    for (u64 i = 0; i < TokensLen; ++i) {
+        Token Token = Tokens[i];
 
-    // for (size_t i = 0; i < TokensLen; ++i) { printf("\t%s\n", GetTokenDebugName(Tokens[i])); }
+        printf(
+            "\tToken: %-10s Value: %-10s\n", GetTypeDebugName(Token.BroadType), (char*)Token.Value
+        );
+
+        free(Token.Value);
+        // free(Token.SubType);
+    }
+
+    free(Source);
 
     return 0;
 }
