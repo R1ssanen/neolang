@@ -10,13 +10,30 @@ $ Entry point.
 
 main(i32: argc, i8[][]: argv) -> i32:
 
-	$ ret, cont & break
+	$ RET, CONT & BREAK
   	  close a scope. A scope must
   	  use one of these calls to
   	  mark its end. $
 
 	if true:
-		ret -1;	
+		ret 10.;
+
+	$ Static type system. $	
+	i64: _var = 7;
+	
+	$ Acquire pointer by 'at' operator. $
+	u64: MemPtr = @_var;
+
+	$ Hash any value by 'hash' operator. $
+	u32: HashVal = #_var;	
+
+	$ Variables are constant by
+	  default, "mutable" variables
+	  are made by 'var' keyword. $
+	
+	$ Mutable character array,
+	  i.e a string. $
+	var i8[]: Str = "Hello_World!";
 
 	ret 0;
 

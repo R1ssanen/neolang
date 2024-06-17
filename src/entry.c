@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "token_subtypes.h"
 #include "tokenize.h"
 #include "types.h"
 
@@ -34,35 +35,39 @@ i32 main(i32 argc, char** argv) {
         fprintf(stderr, "Error: Cannot read file '%s'.\n", pFileName);
         return -1;
     }
-
     fclose(pFile);
 
     // null terminating just to be safe
-    Source[FileLen - 1]  = '\0';
-
-    const u64 MAX_TOKENS = 100000;
-    u64       TokensLen  = 0;
-    Token     Tokens[MAX_TOKENS];
+    Source[FileLen - 1] = '\0';
 
     puts("Begin tokenization...");
+
+    const u64 MAX_TOKENS = 100000;
+    Token*    Tokens     = calloc(MAX_TOKENS, sizeof(Token));
+    u64       TokensLen  = 0;
+
     if (!Tokenize((const char*)Source, FileLen, Tokens, &TokensLen)) {
         fputs("Error: Tokenization failed.\n", stderr);
         return -1;
     }
 
-    puts("Tokenization complete.\nSource tokens:");
+    free(Source);
+    puts("Tokenization complete.");
+
+    puts("\nSource tokens:");
     for (u64 i = 0; i < TokensLen; ++i) {
         Token Token = Tokens[i];
 
         printf(
-            "\tToken: %-10s Value: %-10s\n", GetTypeDebugName(Token.BroadType), (char*)Token.Value
+            "\tType: %-10s Subtype: %-10s Value: %-10s\n", GetTypeDebugName(Token.Type),
+            GetSubtypeDebugName(Token), (char*)Token.Value
         );
 
         free(Token.Value);
-        // free(Token.SubType);
+        free(Token.Subtype);
     }
 
-    free(Source);
+    free(Tokens);
 
     return 0;
 }

@@ -1,25 +1,27 @@
 #include "tokenize.h"
 
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "token_subtypes.h"
 #include "token_types.h"
 #include "types.h"
 #include "util/array.h"
 
-b8 Tokenize(const char* Source, u64 SourceLen, Token* pTokens, u64* pTokensLen) {
+b8 Tokenize(const char* Source, u64 SourceLen, Token* Tokens, u64* TokensLen) {
     if (!Source) {
         fputs("TokenError: Tokenization failed, no sources provided.\n", stderr);
         return false;
     }
 
-    if (!pTokens || !pTokensLen) {
+    if (!Tokens || !TokensLen) {
         fputs("TokenError: Tokenization failed, null output parameter.\n", stderr);
         return false;
     }
 
-    // remove comments
+    // strip comments
     const char* Result         = Source;
     char*       Buffer         = calloc(SourceLen, sizeof(char));
     b8          WithinComment  = false;
@@ -53,64 +55,152 @@ b8 Tokenize(const char* Source, u64 SourceLen, Token* pTokens, u64* pTokensLen) 
         AppendArray(Bites, Bite);
     }
 
-    u64 TotalBites = GetLengthArray(Bites);
-    for (u64 Curr = 0; Curr < TotalBites; ++Curr) {
-        u32  BiteLength = strlen(Bites[Curr]);
+    for (u64 Curr = 0; Curr < GetLengthArray(Bites); ++Curr) {
 
-        char Bite[BiteLength];
+        u32  BiteLen = strlen(Bites[Curr]);
+        char Bite[BiteLen];
         strcpy(Bite, Bites[Curr]);
 
-        // bite is already a token
-        Token PreToken = TryGetToken(Bite);
-        if (PreToken.BroadType != _INVALID) {
-            pTokens[(*pTokensLen)++] = PreToken;
-            continue;
-        }
+        for (u64 i = 0; i < BiteLen; ++i) {
 
-        const char* Result        = Bite;
-        u64         LastSpecIndex = 0;
+            // is identifier or keyword
+            // underscore is permitted in identifiers and keywords
+            if (isalpha(Bite[i]) || Bite[i] == '_') {
 
-        // find delimiting special characters
-        while ((Result = strpbrk(Result, "[](){},:;."))) {
-            u64 SpecIndex   = Result - Bite;
-            u64 LeftsideLen = SpecIndex - LastSpecIndex;
+                // find end of identifier string
+                u64 Begin = i;
+                while (i < BiteLen && (isalnum(Bite[i + 1]) || Bite[i + 1] == '_')) { ++i; }
 
-            if (LeftsideLen == 0) {
-                ++Result;
-                continue;
+                u64   AlnumLen = i - Begin + 1;
+                char* AlnumStr = calloc(AlnumLen, sizeof(char));
+                strncpy(AlnumStr, Bite + Begin, AlnumLen);
+
+                b8 IsKeyword = false;
+                for (u64 KeyIndex = 0; KEYWORDS[KeyIndex]; ++KeyIndex) {
+
+                    // string matches a keyword
+                    if (strcmp(AlnumStr, KEYWORDS[KeyIndex]) == 0) {
+                        IsKeyword = true;
+                        break;
+                    }
+                }
+
+                Token AlnumToken = { .Value   = calloc(AlnumLen, sizeof(char)),
+                                     .Subtype = calloc(1, sizeof(KeyTypes)) };
+
+                strcpy((char*)AlnumToken.Value, AlnumStr);
+                free(AlnumStr);
+
+                if (IsKeyword) {
+                    AlnumToken.Type                  = _KEY;
+                    *(KeyTypes*)(AlnumToken.Subtype) = GetKeySubtype(AlnumToken.Value);
+                } else {
+                    AlnumToken.Type = _ID;
+                }
+
+                Tokens[(*TokensLen)++] = AlnumToken;
             }
 
-            char* LHS = calloc(LeftsideLen, sizeof(char));
-            strncpy(LHS, Bite + LastSpecIndex, LeftsideLen);
+            // is special symbol
+            else if (strchr(SPECIAL_SYMBOLS, Bite[i])) {
+                Token SpecToken                  = { .Type    = _SPEC,
+                                                     .Value   = calloc(1, sizeof(char)),
+                                                     .Subtype = calloc(1, sizeof(SpecTypes)) };
 
-            char Spec[2]             = { Bite[SpecIndex], '\0' };
-            pTokens[(*pTokensLen)++] = TryGetToken(LHS);
-            pTokens[(*pTokensLen)++] = TryGetToken(Spec);
+                *(char*)(SpecToken.Value)        = Bite[i];
+                *(SpecTypes*)(SpecToken.Subtype) = GetSpecialSubtype(Bite[i]);
 
-            free(LHS);
-            ++Result;
-            LastSpecIndex = SpecIndex + 1;
+                Tokens[(*TokensLen)++]           = SpecToken;
+            }
+
+            // is operator
+            else if (strchr(OPERATORS, Bite[i])) {
+                Token OpToken                = { .Type    = _OP,
+                                                 .Value   = calloc(1, sizeof(char)),
+                                                 .Subtype = calloc(1, sizeof(OpTypes)) };
+
+                *(char*)(OpToken.Value)      = Bite[i];
+                *(OpTypes*)(OpToken.Subtype) = GetOperatorSubtype(Bite[i]);
+
+                Tokens[(*TokensLen)++]       = OpToken;
+            }
+
+            // is string literal
+            else if (Bite[i] == '"') {
+
+                // find end of string literal
+                // FIX: spaces within strings arent
+                //      permitted as the code is split
+                //      by whitespace.
+                u64 Begin = i;
+                while (i < BiteLen && Bite[++i] != '"');
+
+                u64   LitLen      = i - Begin + 1;
+                Token StrLitToken = { .Type    = _STRLIT,
+                                      .Value   = calloc(LitLen, sizeof(char)),
+                                      .Subtype = calloc(1, 1) };
+
+                strncpy((char*)StrLitToken.Value, Bite + Begin, LitLen);
+                Tokens[(*TokensLen)++] = StrLitToken;
+            }
+
+            // is numeric literal
+            else if (isdigit(Bite[i])) {
+
+                // find end of numeric literal
+                u64 Begin        = i;
+                b8  DecimalFound = false;
+                u64 DecimalIndex = 0;
+
+                while (i < BiteLen && (isdigit(Bite[i + 1]) || Bite[i + 1] == '.')) {
+                    if (Bite[i + 1] == '.') {
+
+                        // multiple decimal points
+                        if (DecimalFound) {
+                            fputs(
+                                "TokenError: Numeric literal with multiple decimal points.\n",
+                                stderr
+                            );
+                            return false;
+                        }
+
+                        DecimalFound = true;
+                        DecimalIndex = i + 1;
+                    }
+                    ++i;
+                }
+
+                u64   ValueLen    = i - Begin + 1;
+
+                Token NumLitToken = { .Type    = _NUMLIT,
+                                      .Value   = calloc(ValueLen, sizeof(char)),
+                                      .Subtype = calloc(1, sizeof(NumLitTypes)) };
+
+                strncpy((char*)NumLitToken.Value, Bite + Begin, ValueLen);
+
+                // floating point numeric literal
+                if (DecimalFound) {
+                    *(NumLitTypes*)(NumLitToken.Subtype) = _NUMLIT_FLOAT;
+
+                    // if decimal is in last place,
+                    // append a zero to make it syntactically correct
+                    if (DecimalIndex == (Begin + ValueLen) - 1) {
+                        strcat((char*)NumLitToken.Value, "0");
+                    }
+                } else {
+                    *(NumLitTypes*)(NumLitToken.Subtype) = _NUMLIT_INT;
+                }
+
+                Tokens[(*TokensLen)++] = NumLitToken;
+            }
+
+            else {
+                fprintf(stderr, "TokenError: Unknown token in '%s'.\n", Bite);
+                return false;
+            }
         }
     }
 
     DestroyArray(Bites);
     return true;
-}
-
-// order of operations matters,
-// keywords must be tested before identifiers
-static Token (*PFNTokenGetters[6])(const char*) = { TryGetKeyword,       TryGetSpecial,
-                                                    TryGetOperator,      TryGetNumericLiteral,
-                                                    TryGetStringLiteral, TryGetIdentifier };
-
-Token TryGetToken(const char* Str) {
-    Token Token = { 0 };
-
-    // find first token type that is valid
-    for (u64 i = 0; i < 6; ++i) {
-        Token = PFNTokenGetters[i](Str);
-        if (Token.BroadType != _INVALID) { return Token; }
-    }
-
-    return Token;
 }

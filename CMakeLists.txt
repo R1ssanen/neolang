@@ -7,7 +7,7 @@ project(
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 add_executable(
   ${PROJECT_NAME} "src/entry.c" "src/tokenize.c" "src/token_types.c"
-                  "src/sub_types.c" "src/util/array.c")
+                  "src/token_subtypes.c" "src/util/array.c")
 
 set_target_properties(
   ${PROJECT_NAME}

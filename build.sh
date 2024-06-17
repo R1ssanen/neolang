@@ -1,7 +1,4 @@
-#! usr/sbin/bash
+#! bin/bash
 
 cmake -GNinja -S . -B build/
-cd build/
-ninja
-cd ../
-
+cmake --build build/

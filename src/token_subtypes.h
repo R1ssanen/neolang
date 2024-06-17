@@ -32,7 +32,7 @@ typedef enum SpecTypes {
     _SPEC_PERIOD  = 0x200
 } SpecTypes;
 
-// "i8", "i32", "true", "false", "ret", "if", "elif", "else",
+// "i8", "i32", "true", "false", "ret", "if", "elif", "else", "var",
 typedef enum KeyTypes {
     _KEY_INVALID = 0,
     _KEY_INT8    = 0x1,
@@ -42,7 +42,8 @@ typedef enum KeyTypes {
     _KEY_RET     = 0x10,
     _KEY_IF      = 0x20,
     _KEY_ELIF    = 0x40,
-    _KEY_ELSE    = 0x80
+    _KEY_ELSE    = 0x80,
+    _KEY_VAR     = 0x100
 } KeyTypes;
 
 typedef enum NumLitTypes {
@@ -54,5 +55,8 @@ typedef enum NumLitTypes {
 OpTypes   GetOperatorSubtype(const char ch);
 SpecTypes GetSpecialSubtype(const char ch);
 KeyTypes  GetKeySubtype(const char* Str);
+
+struct Token;
+const char* GetSubtypeDebugName(struct Token Token);
 
 #endif

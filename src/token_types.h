@@ -1,7 +1,9 @@
 #ifndef TOKEN_TYPES_H
 #define TOKEN_TYPES_H
 
-#include "types.h"
+extern const char* SPECIAL_SYMBOLS;
+extern const char* OPERATORS;
+extern const char* KEYWORDS[];
 
 typedef enum TokenType {
     _INVALID = 0,    // invalid token type
@@ -13,22 +15,12 @@ typedef enum TokenType {
     _SPEC    = 0x20, // special character
 } TokenType;
 
-TokenType   Classify(const char* Str);
 const char* GetTypeDebugName(TokenType Type);
 
 typedef struct Token {
     void*     Value;
-    void*     SubType;
-    TokenType BroadType;
-    u64       Line;
-    u64       Character;
+    void*     Subtype;
+    TokenType Type;
 } Token;
-
-Token TryGetKeyword(const char* Str);
-Token TryGetOperator(const char* Str);
-Token TryGetSpecial(const char* Str);
-Token TryGetNumericLiteral(const char* Str);
-Token TryGetStringLiteral(const char* Str);
-Token TryGetIdentifier(const char* Str);
 
 #endif
