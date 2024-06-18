@@ -6,8 +6,9 @@ project(
   LANGUAGES C)
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 add_executable(
-  ${PROJECT_NAME} "src/entry.c" "src/tokenize.c" "src/token_types.c"
-                  "src/token_subtypes.c" "src/util/array.c")
+  ${PROJECT_NAME} "src/entry.c" "src/lexer/tokenize.c"
+                  "src/lexer/token_types.c" "src/lexer/token_subtypes.c"
+                  "src/parser/parse.c" "src/parser/parser.c" "src/gen/generate.c" )
 
 set_target_properties(
   ${PROJECT_NAME}
@@ -18,14 +19,8 @@ set_target_properties(
 
 target_include_directories(${PROJECT_NAME} PRIVATE "src/")
 
-set(BASE_COMPILE_FLAGS
-    -Wall
-    -Wextra
-    -Wpedantic
-    -Wno-language-extension-token
-    -lphread
-    -march=native
-    -flto=auto)
+set(BASE_COMPILE_FLAGS -Wall -Wextra -Wpedantic -lphread -march=native
+                       -flto=auto)
 
 if(NOT CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "Debug")
   target_compile_options(${PROJECT_NAME} PRIVATE -g ${BASE_COMPILE_FLAGS})

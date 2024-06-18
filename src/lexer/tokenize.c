@@ -5,10 +5,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../types.h"
 #include "token_subtypes.h"
 #include "token_types.h"
-#include "types.h"
-#include "util/array.h"
 
 b8 Tokenize(const char* Source, u64 SourceLen, Token* Tokens, u64* TokensLen) {
     if (!Source) {
@@ -50,12 +49,20 @@ b8 Tokenize(const char* Source, u64 SourceLen, Token* Tokens, u64* TokensLen) {
 
     // split uncommented source by whitespace
     // into smaller bites
-    char** Bites = CreateArray(char*);
+    const u64 MAX_BITES  = 10000;
+    char**    Bites      = calloc(MAX_BITES, sizeof(char*));
+    u64       TotalBites = 0;
+
     for (char* Bite = strtok(Buffer, " \t\r\n\v\f"); Bite; Bite = strtok(NULL, " \t\r\n\v\f")) {
-        AppendArray(Bites, Bite);
+        Bites[TotalBites] = malloc(strlen(Bite) * sizeof(char));
+        strcpy(Bites[TotalBites], Bite);
+        ++TotalBites;
     }
 
-    for (u64 Curr = 0; Curr < GetLengthArray(Bites); ++Curr) {
+    // resize to actual size
+    Bites = realloc(Bites, TotalBites * sizeof(char*));
+
+    for (u64 Curr = 0; Curr < TotalBites; ++Curr) {
 
         u32  BiteLen = strlen(Bites[Curr]);
         char Bite[BiteLen];
@@ -63,8 +70,7 @@ b8 Tokenize(const char* Source, u64 SourceLen, Token* Tokens, u64* TokensLen) {
 
         for (u64 i = 0; i < BiteLen; ++i) {
 
-            // is identifier or keyword
-            // underscore is permitted in identifiers and keywords
+            // is identifier, keyword or builtin-type.
             if (isalpha(Bite[i]) || Bite[i] == '_') {
 
                 // find end of identifier string
@@ -75,30 +81,33 @@ b8 Tokenize(const char* Source, u64 SourceLen, Token* Tokens, u64* TokensLen) {
                 char* AlnumStr = calloc(AlnumLen, sizeof(char));
                 strncpy(AlnumStr, Bite + Begin, AlnumLen);
 
-                b8 IsKeyword = false;
-                for (u64 KeyIndex = 0; KEYWORDS[KeyIndex]; ++KeyIndex) {
+                Token Token     = { .Type = _ID, .Value = calloc(AlnumLen, sizeof(char)) };
 
-                    // string matches a keyword
-                    if (strcmp(AlnumStr, KEYWORDS[KeyIndex]) == 0) {
-                        IsKeyword = true;
-                        break;
+                b8    IsKeyword = false;
+                for (u64 i = 0; KEYWORDS[i]; ++i) {
+                    if (strcmp(AlnumStr, KEYWORDS[i]) != 0) { continue; }
+
+                    IsKeyword                   = true;
+                    Token.Type                  = _KEY;
+                    Token.Subtype               = calloc(1, sizeof(KeyTypes));
+                    *(KeyTypes*)(Token.Subtype) = GetKeySubtype(AlnumStr);
+                    break;
+                }
+
+                if (!IsKeyword) {
+                    for (u64 i = 0; BUILTIN_TYPES[i]; ++i) {
+                        if (strcmp(AlnumStr, BUILTIN_TYPES[i]) != 0) { continue; }
+
+                        Token.Type                 = _BITYPE;
+                        Token.Subtype              = calloc(1, sizeof(BiTypes));
+                        *(BiTypes*)(Token.Subtype) = GetBiSubtype(AlnumStr);
                     }
                 }
 
-                Token AlnumToken = { .Value   = calloc(AlnumLen, sizeof(char)),
-                                     .Subtype = calloc(1, sizeof(KeyTypes)) };
-
-                strcpy((char*)AlnumToken.Value, AlnumStr);
+                strcpy((char*)Token.Value, AlnumStr);
                 free(AlnumStr);
 
-                if (IsKeyword) {
-                    AlnumToken.Type                  = _KEY;
-                    *(KeyTypes*)(AlnumToken.Subtype) = GetKeySubtype(AlnumToken.Value);
-                } else {
-                    AlnumToken.Type = _ID;
-                }
-
-                Tokens[(*TokensLen)++] = AlnumToken;
+                Tokens[(*TokensLen)++] = Token;
             }
 
             // is special symbol
@@ -201,6 +210,6 @@ b8 Tokenize(const char* Source, u64 SourceLen, Token* Tokens, u64* TokensLen) {
         }
     }
 
-    DestroyArray(Bites);
+    free(Bites);
     return true;
 }

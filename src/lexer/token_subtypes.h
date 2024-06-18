@@ -17,7 +17,6 @@ typedef enum OpTypes {
 } OpTypes;
 
 // "[", "]", "(", ")", "{", "}", ",", ":", ";", ".",
-// TODO: compound declarations like "->" (declare return type)
 typedef enum SpecTypes {
     _SPEC_INVALID = 0,
     _SPEC_LBRACK  = 0x1,
@@ -32,19 +31,33 @@ typedef enum SpecTypes {
     _SPEC_PERIOD  = 0x200
 } SpecTypes;
 
-// "i8", "i32", "true", "false", "ret", "if", "elif", "else", "var",
+// "true", "false", "ret", "if", "elif", "else", "var", "exit"
 typedef enum KeyTypes {
     _KEY_INVALID = 0,
-    _KEY_INT8    = 0x1,
-    _KEY_INT32   = 0x2,
-    _KEY_BTRUE   = 0x4,
-    _KEY_BFALSE  = 0x8,
-    _KEY_RET     = 0x10,
-    _KEY_IF      = 0x20,
-    _KEY_ELIF    = 0x40,
-    _KEY_ELSE    = 0x80,
-    _KEY_VAR     = 0x100
+    _KEY_BTRUE   = 0x1,
+    _KEY_BFALSE  = 0x2,
+    _KEY_RET     = 0x4,
+    _KEY_IF      = 0x8,
+    _KEY_ELIF    = 0x10,
+    _KEY_ELSE    = 0x20,
+    _KEY_VAR     = 0x40,
+    _KEY_EXIT    = 0x80,
 } KeyTypes;
+
+typedef enum BiTypes {
+    _BI_INVALID = 0,
+    _BI_B8      = 0x1,
+    _BI_I8      = 0x2,
+    _BI_I16     = 0x4,
+    _BI_I32     = 0x8,
+    _BI_I64     = 0x10,
+    _BI_U8      = 0x20,
+    _BI_U16     = 0x40,
+    _BI_U32     = 0x80,
+    _BI_U64     = 0x100,
+    _BI_F32     = 0x200,
+    _BI_F64     = 0x400
+} BiTypes;
 
 typedef enum NumLitTypes {
     _NUMLIT_INVALID = 0,
@@ -55,6 +68,7 @@ typedef enum NumLitTypes {
 OpTypes   GetOperatorSubtype(const char ch);
 SpecTypes GetSpecialSubtype(const char ch);
 KeyTypes  GetKeySubtype(const char* Str);
+BiTypes   GetBiSubtype(const char* Str);
 
 struct Token;
 const char* GetSubtypeDebugName(struct Token Token);

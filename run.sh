@@ -1,3 +1,3 @@
 #! bin/bash
 
-build/neolang testfile.neo
+build/neolang tests/.neo

@@ -1,0 +1,6 @@
+$ Test file $
+
+u32: num = 420;
+
+exit 60;
+

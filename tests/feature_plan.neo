@@ -11,7 +11,7 @@ $ Entry point.
 main(i32: argc, i8[][]: argv) -> i32:
 
 	$ RET, CONT & BREAK
-  	  close a scope. A scope must
+      close a scope. A scope must
   	  use one of these calls to
   	  mark its end. $
 

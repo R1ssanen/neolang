@@ -1,8 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "token_subtypes.h"
-#include "tokenize.h"
+#include "gen/generate.h"
+#include "lexer/token_subtypes.h"
+#include "lexer/tokenize.h"
+#include "parser/node_types.h"
+#include "parser/parse.h"
 #include "types.h"
 
 i32 main(i32 argc, char** argv) {
@@ -10,7 +13,7 @@ i32 main(i32 argc, char** argv) {
         fputs(
             "Error: No source file to interpret. \nUsage:\tneolang [FILE_TO_INTERPRET]\n", stderr
         );
-        return -1;
+        return EXIT_FAILURE;
     }
 
     const char* pFileName = argv[1];
@@ -18,7 +21,7 @@ i32 main(i32 argc, char** argv) {
 
     if (!pFile) {
         fprintf(stderr, "Error: Could not open source file '%s', it may not exist.\n", pFileName);
-        return -1;
+        return EXIT_FAILURE;
     }
 
     // get file length
@@ -33,14 +36,14 @@ i32 main(i32 argc, char** argv) {
 
     if (ferror(pFile) != 0) {
         fprintf(stderr, "Error: Cannot read file '%s'.\n", pFileName);
-        return -1;
+        return EXIT_FAILURE;
     }
     fclose(pFile);
 
     // null terminating just to be safe
     Source[FileLen - 1] = '\0';
 
-    puts("Begin tokenization...");
+    puts("\nBegin tokenization.");
 
     const u64 MAX_TOKENS = 100000;
     Token*    Tokens     = calloc(MAX_TOKENS, sizeof(Token));
@@ -48,11 +51,12 @@ i32 main(i32 argc, char** argv) {
 
     if (!Tokenize((const char*)Source, FileLen, Tokens, &TokensLen)) {
         fputs("Error: Tokenization failed.\n", stderr);
-        return -1;
+        return EXIT_FAILURE;
     }
 
     free(Source);
     puts("Tokenization complete.");
+    puts("Begin parsing.");
 
     puts("\nSource tokens:");
     for (u64 i = 0; i < TokensLen; ++i) {
@@ -63,11 +67,49 @@ i32 main(i32 argc, char** argv) {
             GetSubtypeDebugName(Token), (char*)Token.Value
         );
 
-        free(Token.Value);
-        free(Token.Subtype);
+        // free(Token.Value);
+        // free(Token.Subtype);
     }
 
+    const u64 MAX_NODE_STATEMENTS = 1000;
+    NodeRoot  Tree = { .Stats = calloc(MAX_NODE_STATEMENTS, sizeof(NodeStmt)), .StatsLen = 0 };
+
+    if (!Parse(Tokens, TokensLen, &Tree)) {
+        fputs("Error: Parsing failed.\n", stderr);
+        return EXIT_FAILURE;
+    }
+
+    // resize to true size
+    Tree.Stats = realloc(Tree.Stats, Tree.StatsLen * sizeof(NodeStmt));
+
     free(Tokens);
+    puts("Parsing complete.");
+    puts("Begin code generation.");
+
+    const char* Filename = "bin/out.asm";
+    FILE*       pOutFile = fopen(Filename, "w");
+    if (!pOutFile) {
+        fprintf(stderr, "Error: Could not open output file '%s' for write.\n", Filename);
+        return EXIT_FAILURE;
+    }
+
+    if (!Generate(Tree, pOutFile)) {
+        fputs("Error: Code generation failed.\n", stderr);
+        return EXIT_FAILURE;
+    }
+
+    free(Tree.Stats);
+    puts("Code generation complete.");
+
+    if (fclose(pOutFile) != 0) {
+        fprintf(stderr, "Error: Could not close output file '%s'.\n", Filename);
+        return EXIT_FAILURE;
+    }
+
+    system("nasm -felf64 bin/out.asm");
+    system("ld -o bin/out bin/out.o");
+
+    puts("\nCompilation complete!");
 
     return 0;
 }
