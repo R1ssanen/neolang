@@ -81,16 +81,16 @@ b8 Tokenize(const char* Source, u64 SourceLen, Token* Tokens, u64* TokensLen) {
                 char* AlnumStr = calloc(AlnumLen, sizeof(char));
                 strncpy(AlnumStr, Bite + Begin, AlnumLen);
 
-                Token Token     = { .Type = _ID, .Value = calloc(AlnumLen, sizeof(char)) };
+                Token Token = { .Type = _ID, .Value = calloc(AlnumLen, sizeof(char)) };
+                strcpy((char*)Token.Value, AlnumStr);
 
-                b8    IsKeyword = false;
+                b8 IsKeyword = false;
                 for (u64 i = 0; KEYWORDS[i]; ++i) {
                     if (strcmp(AlnumStr, KEYWORDS[i]) != 0) { continue; }
 
-                    IsKeyword                   = true;
-                    Token.Type                  = _KEY;
-                    Token.Subtype               = calloc(1, sizeof(KeyTypes));
-                    *(KeyTypes*)(Token.Subtype) = GetKeySubtype(AlnumStr);
+                    IsKeyword     = true;
+                    Token.Type    = _KEY;
+                    Token.Subtype = SUBKEYTYPES[i];
                     break;
                 }
 
@@ -98,13 +98,12 @@ b8 Tokenize(const char* Source, u64 SourceLen, Token* Tokens, u64* TokensLen) {
                     for (u64 i = 0; BUILTIN_TYPES[i]; ++i) {
                         if (strcmp(AlnumStr, BUILTIN_TYPES[i]) != 0) { continue; }
 
-                        Token.Type                 = _BITYPE;
-                        Token.Subtype              = calloc(1, sizeof(BiTypes));
-                        *(BiTypes*)(Token.Subtype) = GetBiSubtype(AlnumStr);
+                        Token.Type    = _BITYPE;
+                        Token.Subtype = SUBBITYPES[i];
+                        break;
                     }
                 }
 
-                strcpy((char*)Token.Value, AlnumStr);
                 free(AlnumStr);
 
                 Tokens[(*TokensLen)++] = Token;
@@ -112,26 +111,20 @@ b8 Tokenize(const char* Source, u64 SourceLen, Token* Tokens, u64* TokensLen) {
 
             // is special symbol
             else if (strchr(SPECIAL_SYMBOLS, Bite[i])) {
-                Token SpecToken                  = { .Type    = _SPEC,
-                                                     .Value   = calloc(1, sizeof(char)),
-                                                     .Subtype = calloc(1, sizeof(SpecTypes)) };
-
-                *(char*)(SpecToken.Value)        = Bite[i];
-                *(SpecTypes*)(SpecToken.Subtype) = GetSpecialSubtype(Bite[i]);
-
-                Tokens[(*TokensLen)++]           = SpecToken;
+                Token SpecToken           = { .Type    = _SPEC,
+                                              .Subtype = (TokenSubtype)(Bite[i]),
+                                              .Value   = calloc(1, sizeof(char)) };
+                *(char*)(SpecToken.Value) = Bite[i];
+                Tokens[(*TokensLen)++]    = SpecToken;
             }
 
             // is operator
             else if (strchr(OPERATORS, Bite[i])) {
-                Token OpToken                = { .Type    = _OP,
-                                                 .Value   = calloc(1, sizeof(char)),
-                                                 .Subtype = calloc(1, sizeof(OpTypes)) };
-
-                *(char*)(OpToken.Value)      = Bite[i];
-                *(OpTypes*)(OpToken.Subtype) = GetOperatorSubtype(Bite[i]);
-
-                Tokens[(*TokensLen)++]       = OpToken;
+                Token OpToken           = { .Type    = _OP,
+                                            .Subtype = (TokenSubtype)(Bite[i]),
+                                            .Value   = calloc(1, sizeof(char)) };
+                *(char*)(OpToken.Value) = Bite[i];
+                Tokens[(*TokensLen)++]  = OpToken;
             }
 
             // is string literal
@@ -145,15 +138,15 @@ b8 Tokenize(const char* Source, u64 SourceLen, Token* Tokens, u64* TokensLen) {
                 while (i < BiteLen && Bite[++i] != '"');
 
                 u64   LitLen      = i - Begin + 1;
-                Token StrLitToken = { .Type    = _STRLIT,
-                                      .Value   = calloc(LitLen, sizeof(char)),
-                                      .Subtype = calloc(1, 1) };
+                Token StrLitToken = { .Type = _STRLIT, .Value = calloc(LitLen, sizeof(char)) };
 
                 strncpy((char*)StrLitToken.Value, Bite + Begin, LitLen);
                 Tokens[(*TokensLen)++] = StrLitToken;
             }
 
             // is numeric literal
+            // TODO: allow dropping of redundant
+            //       zero. i.e, .03 is a valid float
             else if (isdigit(Bite[i])) {
 
                 // find end of numeric literal
@@ -180,24 +173,21 @@ b8 Tokenize(const char* Source, u64 SourceLen, Token* Tokens, u64* TokensLen) {
                 }
 
                 u64   ValueLen    = i - Begin + 1;
-
                 Token NumLitToken = { .Type    = _NUMLIT,
-                                      .Value   = calloc(ValueLen, sizeof(char)),
-                                      .Subtype = calloc(1, sizeof(NumLitTypes)) };
+                                      .Subtype = _NUMLIT_INT,
+                                      .Value   = calloc(ValueLen, sizeof(char)) };
 
                 strncpy((char*)NumLitToken.Value, Bite + Begin, ValueLen);
 
                 // floating point numeric literal
                 if (DecimalFound) {
-                    *(NumLitTypes*)(NumLitToken.Subtype) = _NUMLIT_FLOAT;
+                    NumLitToken.Subtype = _NUMLIT_FLOAT;
 
                     // if decimal is in last place,
                     // append a zero to make it syntactically correct
                     if (DecimalIndex == (Begin + ValueLen) - 1) {
                         strcat((char*)NumLitToken.Value, "0");
                     }
-                } else {
-                    *(NumLitTypes*)(NumLitToken.Subtype) = _NUMLIT_INT;
                 }
 
                 Tokens[(*TokensLen)++] = NumLitToken;

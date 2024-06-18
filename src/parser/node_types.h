@@ -1,3 +1,9 @@
+/**
+ * @file parser/node_types.h
+ * @brief Abstract syntax tree nodes.
+ * @author github.com/r1ssanen
+ */
+
 #ifndef NODE_TYPES_H
 #define NODE_TYPES_H
 
@@ -6,15 +12,17 @@
 
 typedef enum NodeType {
     _NODE_INVALID    = 0,
-    _NODE_NUMLIT     = 0x1,
-    _NODE_STRLIT     = 0x2,
-    _NODE_ID         = 0x4,
-    _NODE_EXPR       = 0x8,
-    _NODE_STMT       = 0x10,
-    _NODE_STMT_EXIT  = 0x20,
-    _NODE_STMT_DECL  = 0x40,
-    _NODE_STMT_MDECL = 0x80, // mutable declare (var)
 
+    _NODE_NUMLIT     = 0x00000001,
+    _NODE_STRLIT     = 0x00000002,
+    _NODE_ID         = 0x00000004,
+    _NODE_EXPR       = 0x00000008,
+    _NODE_STMT       = 0x00000010,
+    _NODE_STMT_EXIT  = 0x00000020,
+    _NODE_STMT_DECL  = 0x00000040,
+
+    // mutable declare (var)
+    _NODE_STMT_MDECL = 0x00000080
 } NodeType;
 
 typedef struct NodeExprNumLit {
@@ -40,12 +48,7 @@ typedef struct NodeExpr {
 } NodeExpr;
 
 typedef struct NodeStmtExit {
-    union {
-        NodeExprNumLit IntLit;
-        NodeExprId     Id;
-    };
-
-    NodeType Holds;
+    NodeExpr Expr;
 } NodeStmtExit;
 
 typedef struct NodeStmtDecl {

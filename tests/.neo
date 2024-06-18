@@ -1,6 +1,9 @@
 $ Test file $
 
-u32: num = 420;
+u32: num = 125;
 
-exit 60;
+$u32: x = num;$
+u32: y = 0.3;
+
+exit num;
 

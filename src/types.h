@@ -1,3 +1,9 @@
+/**
+ * @file types.h
+ * @brief Convenience type definitions.
+ * @author github.com/r1ssanen
+ */
+
 #ifndef TYPES_H
 #define TYPES_H
 

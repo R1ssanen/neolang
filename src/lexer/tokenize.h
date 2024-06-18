@@ -1,6 +1,6 @@
 /**
- * @file tokenize.h
- * @brief Tokenizer
+ * @file lexer/tokenize.h
+ * @brief Tokenizer.
  * @author github.com/r1ssanen
  */
 

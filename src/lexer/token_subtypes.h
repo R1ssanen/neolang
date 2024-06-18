@@ -1,76 +1,71 @@
-#ifndef SUB_TYPES_H
-#define SUB_TYPES_H
+/**
+ * @file lexer/token_subtypes.h
+ * @brief Token subtype enumerations.
+ * @author github.com/r1ssanen
+ */
+
+#ifndef TOKEN_SUBTYPES_H
+#define TOKEN_SUBTYPES_H
+
+typedef enum TokenSubtype {
+    _SUB_INVALID  = 0,
+
+    // operators
+    _OP_ADD       = '+',
+    _OP_SUB       = '-',
+    _OP_MUL       = '*',
+    _OP_DIV       = '/',
+    _OP_EQ        = '=',
+    _OP_LSHIFT    = '<',
+    _OP_RSHIFT    = '>',
+    _OP_ONESCOMP  = '^',
+    _OP_HASH      = '#',
+    _OP_AT        = '@',
+
+    // special symbols
+    _SPEC_LBRACK  = '[',
+    _SPEC_RBRACK  = ']',
+    _SPEC_LPAREN  = '(',
+    _SPEC_RPAREN  = ')',
+    _SPEC_LBRACE  = '{',
+    _SPEC_RBRACE  = '}',
+    _SPEC_PERIOD  = '.',
+    _SPEC_COMMA   = ',',
+    _SPEC_COLON   = ':',
+    _SPEC_SEMI    = ';',
+
+    // keywords
+    _KEY_BTRUE    = 0x00000100,
+    _KEY_BFALSE   = 0x00000200,
+    _KEY_RET      = 0x00000400,
+    _KEY_IF       = 0x00000800,
+    _KEY_ELIF     = 0x00001000,
+    _KEY_ELSE     = 0x00002000,
+    _KEY_VAR      = 0x00004000,
+    _KEY_EXIT     = 0x00008000,
+
+    // built-in types
+    _BI_B8        = 0x000010000,
+    _BI_I8        = 0x000020000,
+    _BI_I16       = 0x000040000,
+    _BI_I32       = 0x000080000,
+    _BI_I64       = 0x000100000,
+    _BI_U8        = 0x000200000,
+    _BI_U16       = 0x000400000,
+    _BI_U32       = 0x000800000,
+    _BI_U64       = 0x001000000,
+    _BI_F32       = 0x002000000,
+    _BI_F64       = 0x004000000,
+
+    _NUMLIT_INT   = 0x00800000,
+    _NUMLIT_FLOAT = 0x01000000
+} TokenSubtype;
 
 // "+", "-", "*", "/", "=", "<", ">", "~", "#", "@"
-typedef enum OpTypes {
-    _OP_INVALID  = 0,
-    _OP_ADD      = 0x1,
-    _OP_SUB      = 0x2,
-    _OP_MUL      = 0x4,
-    _OP_DIV      = 0x8,
-    _OP_EQ       = 0x10,
-    _OP_LSHIFT   = 0x20,
-    _OP_RSHIFT   = 0x40,
-    _OP_ONESCOMP = 0x80,
-    _OP_HASH     = 0x100,
-    _OP_AT       = 0x200
-} OpTypes;
-
 // "[", "]", "(", ")", "{", "}", ",", ":", ";", ".",
-typedef enum SpecTypes {
-    _SPEC_INVALID = 0,
-    _SPEC_LBRACK  = 0x1,
-    _SPEC_RBRACK  = 0x2,
-    _SPEC_LPAREN  = 0x4,
-    _SPEC_RPAREN  = 0x8,
-    _SPEC_LBRACE  = 0x10,
-    _SPEC_RBRACE  = 0x20,
-    _SPEC_COMMA   = 0x40,
-    _SPEC_COLON   = 0x80,
-    _SPEC_SEMI    = 0x100,
-    _SPEC_PERIOD  = 0x200
-} SpecTypes;
-
 // "true", "false", "ret", "if", "elif", "else", "var", "exit"
-typedef enum KeyTypes {
-    _KEY_INVALID = 0,
-    _KEY_BTRUE   = 0x1,
-    _KEY_BFALSE  = 0x2,
-    _KEY_RET     = 0x4,
-    _KEY_IF      = 0x8,
-    _KEY_ELIF    = 0x10,
-    _KEY_ELSE    = 0x20,
-    _KEY_VAR     = 0x40,
-    _KEY_EXIT    = 0x80,
-} KeyTypes;
 
-typedef enum BiTypes {
-    _BI_INVALID = 0,
-    _BI_B8      = 0x1,
-    _BI_I8      = 0x2,
-    _BI_I16     = 0x4,
-    _BI_I32     = 0x8,
-    _BI_I64     = 0x10,
-    _BI_U8      = 0x20,
-    _BI_U16     = 0x40,
-    _BI_U32     = 0x80,
-    _BI_U64     = 0x100,
-    _BI_F32     = 0x200,
-    _BI_F64     = 0x400
-} BiTypes;
-
-typedef enum NumLitTypes {
-    _NUMLIT_INVALID = 0,
-    _NUMLIT_INT     = 0x1,
-    _NUMLIT_FLOAT   = 0x2
-} NumLitTypes;
-
-OpTypes   GetOperatorSubtype(const char ch);
-SpecTypes GetSpecialSubtype(const char ch);
-KeyTypes  GetKeySubtype(const char* Str);
-BiTypes   GetBiSubtype(const char* Str);
-
-struct Token;
-const char* GetSubtypeDebugName(struct Token Token);
+extern const TokenSubtype SUBKEYTYPES[];
+extern const TokenSubtype SUBBITYPES[];
 
 #endif

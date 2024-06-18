@@ -18,7 +18,10 @@ b8             InitParser(const Token* Tokens, u64 TokensLen) {
     State         = malloc(sizeof(Parser));
     State->Tokens = malloc(TokensLen * sizeof(Token));
 
-    memcpy((void*)State->Tokens, (void*)Tokens, TokensLen * sizeof(Token));
+    if (!memcpy((void*)State->Tokens, (void*)Tokens, TokensLen * sizeof(Token))) {
+        fputs("Error: memcpy failed at 'InitParser'.\n", stderr);
+        return false;
+    }
 
     State->TokensLen  = TokensLen;
     State->TokenIndex = 0;

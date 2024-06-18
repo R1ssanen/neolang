@@ -1,3 +1,9 @@
+/**
+ * @file parser/parser.h
+ * @brief Parsers internal state.
+ * @author github.com/r1ssanen
+ */
+
 #ifndef PARSER_H
 #define PARSER_H
 

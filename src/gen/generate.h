@@ -1,11 +1,16 @@
+/**
+ * @file gen/generate.h
+ * @brief Code generation.
+ * @author github.com/r1ssanen
+ */
+
 #ifndef GENERATE_H
 #define GENERATE_H
 
-#include <stdio.h>
-
-#include "../parser/node_types.h"
 #include "../types.h"
 
-b8 Generate(NodeRoot Tree, FILE* Out);
+struct NodeRoot;
+
+b8 Generate(const char* Filepath, const struct NodeRoot* Tree);
 
 #endif

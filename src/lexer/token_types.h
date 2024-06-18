@@ -1,3 +1,9 @@
+/**
+ * @file lexer/token_types.h
+ * @brief Token type enumerations.
+ * @author github.com/r1ssanen
+ */
+
 #ifndef TOKEN_TYPES_H
 #define TOKEN_TYPES_H
 
@@ -7,22 +13,38 @@ extern const char* KEYWORDS[];
 extern const char* BUILTIN_TYPES[];
 
 typedef enum TokenType {
-    _INVALID = 0,    // invalid token type
-    _ID      = 0x1,  // identifier
-    _KEY     = 0x2,  // keyword
-    _OP      = 0x4,  // operator
-    _STRLIT  = 0x8,  // string literal
-    _NUMLIT  = 0x10, // numeric literal
-    _SPEC    = 0x20, // special character
-    _BITYPE  = 0x40  // built-in type
+    _INVALID = 0,
+
+    // identifier
+    _ID      = 0x00000001,
+
+    // keyword
+    _KEY     = 0x00000002,
+
+    // operator
+    _OP      = 0x00000004,
+
+    // string literal
+    _STRLIT  = 0x00000008,
+
+    // numeric literal
+    _NUMLIT  = 0x00000010,
+
+    // special symbol
+    _SPEC    = 0x00000020,
+
+    // built-in type
+    _BITYPE  = 0x00000040
 } TokenType;
 
 const char* GetTypeDebugName(TokenType Type);
 
+#include "token_subtypes.h"
+
 typedef struct Token {
-    void*     Value;
-    void*     Subtype;
-    TokenType Type;
+    void*        Value;
+    TokenType    Type;
+    TokenSubtype Subtype;
 } Token;
 
 #endif

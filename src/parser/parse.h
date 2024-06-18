@@ -1,3 +1,9 @@
+/**
+ * @file parser/parse.h
+ * @brief Parse.
+ * @author github.com/r1ssanen
+ */
+
 #ifndef PARSE_H
 #define PARSE_H
 
