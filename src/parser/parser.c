@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../arena.h"
 #include "../lexer/token_types.h"
 #include "../types.h"
 
@@ -15,10 +16,10 @@ b8             InitParser(const Token* Tokens, u64 TokensLen) {
         return false;
     }
 
-    State         = malloc(sizeof(Parser));
-    State->Tokens = malloc(TokensLen * sizeof(Token));
+    State         = Alloc(Parser, 1);
+    State->Tokens = Alloc(Token, TokensLen);
 
-    if (!memcpy((void*)State->Tokens, (void*)Tokens, TokensLen * sizeof(Token))) {
+    if (!memcpy((void*)State->Tokens, (const void*)Tokens, TokensLen * sizeof(Token))) {
         fputs("Error: memcpy failed at 'InitParser'.\n", stderr);
         return false;
     }
@@ -29,19 +30,14 @@ b8             InitParser(const Token* Tokens, u64 TokensLen) {
     return true;
 }
 
-void   DestroyParser(void) { free((void*)State); }
+void   DestroyParser(void) { State = NULL; }
 
 Token* Peek(u32 Offset) {
     if ((State->TokenIndex + Offset) >= State->TokensLen) { return NULL; }
-
-    return &State->Tokens[State->TokenIndex + Offset];
+    return State->Tokens + (State->TokenIndex + Offset);
 }
 
 Token* Consume(void) {
-    if (State->TokenIndex >= State->TokensLen) { return NULL; }
-
     ++State->TokenIndex;
-    return &State->Tokens[State->TokenIndex];
+    return State->Tokens + (State->TokenIndex);
 }
-
-b8 AtLeast(u32 Count) { return Count <= (State->TokensLen - State->TokenIndex); }

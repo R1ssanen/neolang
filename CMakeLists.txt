@@ -6,10 +6,19 @@ project(
   LANGUAGES C)
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 add_executable(
-  ${PROJECT_NAME} "src/entry.c" "src/lexer/tokenize.c"
-                  "src/lexer/token_types.c" "src/lexer/token_subtypes.c"
-                  "src/parser/parse.c" "src/parser/parser.c" "src/gen/generate.c"
-                  "src/gen/generator.c" )
+  ${PROJECT_NAME}
+  "src/entry.c"
+  "src/lexer/tokenize.c"
+  "src/lexer/token_types.c"
+  "src/lexer/token_subtypes.c"
+  "src/lexer/tokenizer.c"
+  "src/parser/parse.c"
+  "src/parser/parser.c"
+  "src/gen/generate.c"
+  "src/gen/generator.c"
+  "src/arena.c"
+  "src/debug/ast_output.c"
+  "src/debug/jWrite.c")
 
 set_target_properties(
   ${PROJECT_NAME}

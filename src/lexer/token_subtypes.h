@@ -57,15 +57,16 @@ typedef enum TokenSubtype {
     _BI_F32       = 0x002000000,
     _BI_F64       = 0x004000000,
 
-    _NUMLIT_INT   = 0x00800000,
-    _NUMLIT_FLOAT = 0x01000000
+    // numeric literals
+    _NUMLIT_INT   = 0x008000000,
+    _NUMLIT_FLOAT = 0x010000000,
+    _NUMLIT_DOUBL = 0x020000000
 } TokenSubtype;
 
 // "+", "-", "*", "/", "=", "<", ">", "~", "#", "@"
 // "[", "]", "(", ")", "{", "}", ",", ":", ";", ".",
 // "true", "false", "ret", "if", "elif", "else", "var", "exit"
 
-extern const TokenSubtype SUBKEYTYPES[];
-extern const TokenSubtype SUBBITYPES[];
+extern const TokenSubtype KEYSUBTYPES[];
 
 #endif

@@ -10,7 +10,6 @@
 extern const char* SPECIAL_SYMBOLS;
 extern const char* OPERATORS;
 extern const char* KEYWORDS[];
-extern const char* BUILTIN_TYPES[];
 
 typedef enum TokenType {
     _INVALID = 0,
@@ -32,9 +31,6 @@ typedef enum TokenType {
 
     // special symbol
     _SPEC    = 0x00000020,
-
-    // built-in type
-    _BITYPE  = 0x00000040
 } TokenType;
 
 const char* GetTypeDebugName(TokenType Type);

@@ -8,11 +8,24 @@
 #include "../types.h"
 #include "generator.h"
 
+static const char* WORDSIZE[] = { [1] = "BYTE", [2] = "WORD", [4] = "DWORD", [8] = "QWORD" };
+
+static const u8    BYTESIZE[] = {
+    [_BI_B8] = 1,  [_BI_I8] = 1,  [_BI_U8] = 1,  [_BI_I16] = 2, [_BI_U16] = 2, [_BI_I32] = 4,
+    [_BI_U32] = 4, [_BI_F32] = 4, [_BI_I64] = 8, [_BI_U64] = 8, [_BI_F64] = 8
+};
+
 static b8 GenerateExpr(const NodeExpr* Expr) {
 
     if (Expr->Holds == _NODE_NUMLIT) {
-        fprintf(State->Out, "       mov rax, %s\n", (char*)Expr->NumLit.NumLit.Value);
-        PushStack("rax");
+        if (Expr->NumLit->Num.Subtype == _NUMLIT_INT) {
+            PushStack((char*)Expr->NumLit->Num.Value);
+            return true;
+        }
+
+        char Buf[20];
+        sprintf(Buf, "__float32__(%s)", (char*)Expr->NumLit->Num.Value);
+        PushStack(Buf);
     }
 
     else if (Expr->Holds == _NODE_STRLIT) {
@@ -22,22 +35,26 @@ static b8 GenerateExpr(const NodeExpr* Expr) {
     else if (Expr->Holds == _NODE_ID) {
 
         for (u64 i = 0; i < State->VarCount; ++i) {
-            if (strcmp((char*)Expr->Id.Id.Value, State->Vars[i].Id) != 0) { break; }
+            const Variable* Var = &State->VarRegistry[i];
+
+            if (strcmp((char*)Expr->Ident->Id.Value, Var->Ident->Id.Value) != 0) { continue; }
+
+            // printf("Var: %-7s Index: %-7lu\n", (char*)Var->Ident->Id.Value, Var->StackIndex);
 
             // variable identifier exists
-            char* Register = malloc(30 * sizeof(char));
+            char VarValue[100];
             sprintf(
-                Register, "QWORD [rsp + %lu]", (State->StackPtr - State->Vars[i].StackIndex) * 4
+                VarValue, "QWORD [rsp + %i]", (i32)(((State->StackPtr - Var->StackIndex) * 8) - 8)
             );
 
-            PushStack(Register);
-            free(Register);
+            PushStack(VarValue);
 
             return true;
         }
 
         fprintf(
-            stderr, "GenError: Variable identifier '%s' doesn't exist.\n", (char*)Expr->Id.Id.Value
+            stderr, "GenError: Variable identifier '%s' doesn't exist.\n",
+            (char*)Expr->Ident->Id.Value
         );
         return false;
     }
@@ -54,20 +71,19 @@ static b8 GenerateDecl(const NodeStmtDecl* Decl) {
     for (u64 i = 0; i < State->VarCount; ++i) {
 
         // variable identifier already taken
-        if (strcmp((char*)Decl->Id.Value, State->Vars[i].Id) == 0) {
+        if (strcmp((char*)Decl->Ident->Id.Value, State->VarRegistry[i].Ident->Id.Value) == 0) {
             fprintf(
                 stderr, "GenError: Variable identifier '%s' already taken at stack position %lu.\n",
-                (char*)Decl->Id.Value, State->Vars[i].StackIndex
+                (char*)Decl->Ident->Id.Value, State->VarRegistry[i].StackIndex
             );
             return false;
         }
     }
 
     // new variable
-    State->Vars[State->VarCount++] =
-        (Variable){ .Id = (char*)Decl->Id.Value, .StackIndex = State->StackPtr };
+    RegisterVar(Decl->Ident, BYTESIZE[Decl->Type]);
 
-    if (!GenerateExpr(&Decl->Expr)) {
+    if (!GenerateExpr(Decl->Expr)) {
         fputs("GenError: Could not generate code for declaration expression.\n", stderr);
         return false;
     }
@@ -77,7 +93,7 @@ static b8 GenerateDecl(const NodeStmtDecl* Decl) {
 
 static b8 GenerateExit(const NodeStmtExit* Exit) {
 
-    if (!GenerateExpr(&Exit->Expr)) {
+    if (!GenerateExpr(Exit->Expr)) {
         fputs("GenError: Could not generate source code for expression.\n", stderr);
         return false;
     }
@@ -92,14 +108,14 @@ static b8 GenerateExit(const NodeStmtExit* Exit) {
 static b8 GenerateStmt(const NodeStmt* Stmt) {
 
     if (Stmt->Holds == _NODE_STMT_EXIT) {
-        if (!GenerateExit(&Stmt->Exit)) {
+        if (!GenerateExit(Stmt->Exit)) {
             fputs("GenError: Could not generate code for exit statement.\n", stderr);
             return false;
         }
     }
 
     else if (Stmt->Holds == _NODE_STMT_DECL) {
-        if (!GenerateDecl(&Stmt->Decl)) {
+        if (!GenerateDecl(Stmt->Decl)) {
             fputs("GenError: Could not generate code for declaration statement.\n", stderr);
             return false;
         }
@@ -116,9 +132,9 @@ static b8 GenerateStmt(const NodeStmt* Stmt) {
 static b8 GenerateRoot(const NodeRoot* Tree) {
 
     for (u64 i = 0; i < Tree->StatsLen; ++i) {
-        NodeStmt Stmt = Tree->Stats[i];
+        NodeStmt* Stmt = Tree->Stats[i];
 
-        if (!GenerateStmt(&Stmt)) {
+        if (!GenerateStmt(Stmt)) {
             fputs("GenError: Could not generate code for statement.\n", stderr);
             return false;
         }

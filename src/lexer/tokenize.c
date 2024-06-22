@@ -5,9 +5,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../arena.h"
 #include "../types.h"
 #include "token_subtypes.h"
 #include "token_types.h"
+#include "tokenizer.h"
 
 b8 Tokenize(const char* Source, u64 SourceLen, Token* Tokens, u64* TokensLen) {
     if (!Source) {
@@ -20,186 +22,130 @@ b8 Tokenize(const char* Source, u64 SourceLen, Token* Tokens, u64* TokensLen) {
         return false;
     }
 
-    // strip comments
-    const char* Result         = Source;
-    char*       Buffer         = calloc(SourceLen, sizeof(char));
-    b8          WithinComment  = false;
-    u64         LastCommentEnd = 0;
-
-    while ((Result = strchr(Result, '$'))) {
-        WithinComment = !WithinComment;
-
-        if (!WithinComment) { // exited
-            LastCommentEnd = (Result - Source) + 1;
-        } else { // entered
-            strncat(Buffer, Source + LastCommentEnd, (Result - Source) - LastCommentEnd);
-        }
-
-        ++Result;
-    }
-
-    // unclosed comment block
-    if (WithinComment) {
-        fputs("TokenError: Unclosed comment block.\n", stderr);
+    if (!InitTokenizer(Source, SourceLen)) {
+        fputs("TokenError: Could not initialize tokenizer.\n", stderr);
         return false;
     }
 
-    // concatenate segment after last comment
-    strncat(Buffer, Source + LastCommentEnd, SourceLen - LastCommentEnd);
+    // for every bite
+    while (PeekBite(0)) {
 
-    // split uncommented source by whitespace
-    // into smaller bites
-    const u64 MAX_BITES  = 10000;
-    char**    Bites      = calloc(MAX_BITES, sizeof(char*));
-    u64       TotalBites = 0;
+        // for every character
+        while (PeekChar(0)) {
 
-    for (char* Bite = strtok(Buffer, " \t\r\n\v\f"); Bite; Bite = strtok(NULL, " \t\r\n\v\f")) {
-        Bites[TotalBites] = malloc(strlen(Bite) * sizeof(char));
-        strcpy(Bites[TotalBites], Bite);
-        ++TotalBites;
-    }
+            // skip whitespace
+            if (isspace(PeekChar(0))) { ConsumeChar(); }
 
-    // resize to actual size
-    Bites = realloc(Bites, TotalBites * sizeof(char*));
-
-    for (u64 Curr = 0; Curr < TotalBites; ++Curr) {
-
-        u32  BiteLen = strlen(Bites[Curr]);
-        char Bite[BiteLen];
-        strcpy(Bite, Bites[Curr]);
-
-        for (u64 i = 0; i < BiteLen; ++i) {
-
-            // is identifier, keyword or builtin-type.
-            if (isalpha(Bite[i]) || Bite[i] == '_') {
-
-                // find end of identifier string
-                u64 Begin = i;
-                while (i < BiteLen && (isalnum(Bite[i + 1]) || Bite[i + 1] == '_')) { ++i; }
-
-                u64   AlnumLen = i - Begin + 1;
-                char* AlnumStr = calloc(AlnumLen, sizeof(char));
-                strncpy(AlnumStr, Bite + Begin, AlnumLen);
-
-                Token Token = { .Type = _ID, .Value = calloc(AlnumLen, sizeof(char)) };
-                strcpy((char*)Token.Value, AlnumStr);
-
-                b8 IsKeyword = false;
-                for (u64 i = 0; KEYWORDS[i]; ++i) {
-                    if (strcmp(AlnumStr, KEYWORDS[i]) != 0) { continue; }
-
-                    IsKeyword     = true;
-                    Token.Type    = _KEY;
-                    Token.Subtype = SUBKEYTYPES[i];
-                    break;
-                }
-
-                if (!IsKeyword) {
-                    for (u64 i = 0; BUILTIN_TYPES[i]; ++i) {
-                        if (strcmp(AlnumStr, BUILTIN_TYPES[i]) != 0) { continue; }
-
-                        Token.Type    = _BITYPE;
-                        Token.Subtype = SUBBITYPES[i];
-                        break;
-                    }
-                }
-
-                free(AlnumStr);
-
+            // special character
+            if (strchr(SPECIAL_SYMBOLS, PeekChar(0))) {
+                Token Token            = { .Type    = _SPEC,
+                                           .Subtype = (TokenSubtype)(PeekChar(0)),
+                                           .Value   = malloc(sizeof(char)) };
+                *(char*)(Token.Value)  = PeekChar(0);
                 Tokens[(*TokensLen)++] = Token;
+                ConsumeChar();
             }
 
-            // is special symbol
-            else if (strchr(SPECIAL_SYMBOLS, Bite[i])) {
-                Token SpecToken           = { .Type    = _SPEC,
-                                              .Subtype = (TokenSubtype)(Bite[i]),
-                                              .Value   = calloc(1, sizeof(char)) };
-                *(char*)(SpecToken.Value) = Bite[i];
-                Tokens[(*TokensLen)++]    = SpecToken;
-            }
+            // numeric literal
+            // NOTE: must be before operator
+            //       to merge '-' with number
+            else if (isdigit(PeekChar(0))) {
+                const u64 MAX_NUMLIT_DIGITS = 100;
+                char      NumLit[MAX_NUMLIT_DIGITS];
+                u64       NumLen  = 0;
 
-            // is operator
-            else if (strchr(OPERATORS, Bite[i])) {
-                Token OpToken           = { .Type    = _OP,
-                                            .Subtype = (TokenSubtype)(Bite[i]),
-                                            .Value   = calloc(1, sizeof(char)) };
-                *(char*)(OpToken.Value) = Bite[i];
-                Tokens[(*TokensLen)++]  = OpToken;
-            }
-
-            // is string literal
-            else if (Bite[i] == '"') {
-
-                // find end of string literal
-                // FIX: spaces within strings arent
-                //      permitted as the code is split
-                //      by whitespace.
-                u64 Begin = i;
-                while (i < BiteLen && Bite[++i] != '"');
-
-                u64   LitLen      = i - Begin + 1;
-                Token StrLitToken = { .Type = _STRLIT, .Value = calloc(LitLen, sizeof(char)) };
-
-                strncpy((char*)StrLitToken.Value, Bite + Begin, LitLen);
-                Tokens[(*TokensLen)++] = StrLitToken;
-            }
-
-            // is numeric literal
-            // TODO: allow dropping of redundant
-            //       zero. i.e, .03 is a valid float
-            else if (isdigit(Bite[i])) {
-
-                // find end of numeric literal
-                u64 Begin        = i;
-                b8  DecimalFound = false;
-                u64 DecimalIndex = 0;
-
-                while (i < BiteLen && (isdigit(Bite[i + 1]) || Bite[i + 1] == '.')) {
-                    if (Bite[i + 1] == '.') {
-
-                        // multiple decimal points
-                        if (DecimalFound) {
+                b8        IsFloat = false;
+                while (PeekChar(0) && (isdigit(PeekChar(0)) || (PeekChar(0) == '.'))) {
+                    if (PeekChar(0) == '.') {
+                        if (IsFloat) {
                             fputs(
-                                "TokenError: Numeric literal with multiple decimal points.\n",
-                                stderr
+                                "TokenError: Float literal with multiple decimal points.\n", stderr
                             );
                             return false;
                         }
 
-                        DecimalFound = true;
-                        DecimalIndex = i + 1;
+                        IsFloat = true;
                     }
-                    ++i;
+
+                    NumLit[NumLen++] = PeekChar(0);
+                    ConsumeChar();
                 }
 
-                u64   ValueLen    = i - Begin + 1;
-                Token NumLitToken = { .Type    = _NUMLIT,
-                                      .Subtype = _NUMLIT_INT,
-                                      .Value   = calloc(ValueLen, sizeof(char)) };
+                NumLit[NumLen++] = '\0';
 
-                strncpy((char*)NumLitToken.Value, Bite + Begin, ValueLen);
+                Token Token      = { .Type    = _NUMLIT,
+                                     .Subtype = IsFloat ? _NUMLIT_FLOAT : _NUMLIT_INT,
+                                     .Value   = Alloc(char, NumLen) };
+                strcpy((char*)Token.Value, NumLit);
+                Tokens[(*TokensLen)++] = Token;
+            }
 
-                // floating point numeric literal
-                if (DecimalFound) {
-                    NumLitToken.Subtype = _NUMLIT_FLOAT;
+            // operator
+            else if (strchr(OPERATORS, PeekChar(0))) {
+                Token Token            = { .Type    = _OP,
+                                           .Subtype = (TokenSubtype)(PeekChar(0)),
+                                           .Value   = malloc(sizeof(char)) };
+                *(char*)(Token.Value)  = PeekChar(0);
+                Tokens[(*TokensLen)++] = Token;
 
-                    // if decimal is in last place,
-                    // append a zero to make it syntactically correct
-                    if (DecimalIndex == (Begin + ValueLen) - 1) {
-                        strcat((char*)NumLitToken.Value, "0");
-                    }
+                ConsumeChar();
+            }
+
+            // string literal
+            else if (PeekChar(0) == '"') {
+                const u64 MAX_STR_LEN = 1000;
+                char      StrLit[MAX_STR_LEN];
+                u64       StrLen = 0;
+
+                ConsumeChar(); // first "
+                while (PeekChar(0) && PeekChar(0) != '"') {
+                    StrLit[StrLen++] = PeekChar(0);
+                    ConsumeChar();
                 }
 
-                Tokens[(*TokensLen)++] = NumLitToken;
+                StrLit[StrLen++] = '\0';
+
+                Token Token      = { .Type = _STRLIT, .Value = Alloc(char, StrLen) };
+                strcpy((char*)Token.Value, StrLit);
+                Tokens[(*TokensLen)++] = Token;
+
+                ConsumeChar(); // second "
+            }
+
+            // identifier, keyword
+            else if (isalpha(PeekChar(0)) || PeekChar(0) == '_') {
+                const u64 MAX_ID_LEN = 100;
+                char      Ident[MAX_ID_LEN];
+                u64       IdentLen = 0;
+
+                while (PeekChar(0) && (isalnum(PeekChar(0)) || PeekChar(0) == '_')) {
+                    Ident[IdentLen++] = PeekChar(0);
+                    ConsumeChar();
+                }
+
+                Ident[IdentLen++] = '\0';
+
+                Token Token       = { .Type = _ID, .Value = Alloc(char, IdentLen) };
+                strcpy((char*)Token.Value, Ident);
+
+                for (u64 i = 0; KEYWORDS[i]; ++i) {
+                    if (strcmp(Ident, KEYWORDS[i]) != 0) { continue; }
+
+                    Token.Type    = _KEY;
+                    Token.Subtype = KEYSUBTYPES[i];
+                }
+
+                Tokens[(*TokensLen)++] = Token;
             }
 
             else {
-                fprintf(stderr, "TokenError: Unknown token in '%s'.\n", Bite);
+                fprintf(stderr, "TokenError: Unknown token in '%s'.\n", PeekBite(0));
                 return false;
             }
         }
+
+        ConsumeBite();
     }
 
-    free(Bites);
     return true;
 }

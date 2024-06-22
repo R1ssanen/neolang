@@ -1,9 +1,6 @@
 $ Test file $
 
-u32: num = 125;
+i8: ExitCode = 3;
+$ u32: Uninitialized; $
 
-$u32: x = num;$
-u32: y = 0.3;
-
-exit num;
-
+exit ExitCode;

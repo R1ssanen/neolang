@@ -1,11 +1,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "arena.h"
 #include "gen/generate.h"
 #include "lexer/tokenize.h"
 #include "parser/node_types.h"
 #include "parser/parse.h"
 #include "types.h"
+
+// debug
+#include "debug/ast_output.h"
 
 i32 main(i32 argc, char** argv) {
     if (argc <= 1) {
@@ -13,37 +17,40 @@ i32 main(i32 argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    const char* pFileName = argv[1];
-    FILE*       pFile     = fopen(pFileName, "r");
+    const char* Filename = argv[1];
+    FILE*       File     = fopen(Filename, "r");
 
-    if (!pFile) {
-        fprintf(stderr, "Error: Could not open source file '%s', it may not exist.\n", pFileName);
+    if (!File) {
+        fprintf(stderr, "Error: Could not open source file '%s', it may not exist.\n", Filename);
         return EXIT_FAILURE;
     }
 
     // get file length
     u64 FileLen = 0;
-    fseek(pFile, 0, SEEK_END);
-    FileLen = ftell(pFile);
-    fseek(pFile, 0, SEEK_SET);
+    fseek(File, 0, SEEK_END);
+    FileLen = ftell(File);
+    fseek(File, 0, SEEK_SET);
+
+    // intialize memory arena with 10mib
+    InitMemArena(1024 * 1024 * 10);
 
     // read file into buffer
-    char* Source = malloc(FileLen + 1);
-    fread(Source, sizeof(char), FileLen, pFile);
+    char* Source = Alloc(char, FileLen + 1);
+    fread(Source, sizeof(char), FileLen, File);
 
-    if (ferror(pFile) != 0) {
-        fprintf(stderr, "Error: Cannot read file '%s'.\n", pFileName);
+    if (ferror(File) != 0) {
+        fprintf(stderr, "Error: Cannot read file '%s'.\n", Filename);
         return EXIT_FAILURE;
     }
-    fclose(pFile);
+    fclose(File);
 
     // null terminating just to be safe
     Source[FileLen - 1] = '\0';
 
     puts("\nBegin tokenization.");
 
-    const u64 MAX_TOKENS = 100000;
-    Token*    Tokens     = calloc(MAX_TOKENS, sizeof(Token));
+    const u64 MAX_TOKENS = 10000;
+    Token*    Tokens     = Alloc(Token, MAX_TOKENS);
     u64       TokensLen  = 0;
 
     if (!Tokenize((const char*)Source, FileLen, Tokens, &TokensLen)) {
@@ -51,10 +58,9 @@ i32 main(i32 argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    free(Source);
     puts("Tokenization complete.");
-
     puts("\nSource tokens:");
+
     for (u64 i = 0; i < TokensLen; ++i) {
         printf(
             "\tType: %-10s Subtype: 0x%-10X Value: %-10s\n", GetTypeDebugName(Tokens[i].Type),
@@ -62,31 +68,30 @@ i32 main(i32 argc, char** argv) {
         );
     }
 
-    puts("\nBegin parsing.");
+    putchar('\n');
+    puts("Begin parsing.");
 
     const u64 MAX_NODE_STATEMENTS = 1000;
-    NodeRoot  Tree = { .Stats = calloc(MAX_NODE_STATEMENTS, sizeof(NodeStmt)), .StatsLen = 0 };
+    NodeRoot* Tree                = Alloc(NodeRoot, 1);
+    *Tree = (NodeRoot){ .Stats = Alloc(NodeStmt*, MAX_NODE_STATEMENTS), .StatsLen = 0 };
 
-    if (!Parse(Tokens, TokensLen, &Tree)) {
+    if (!Parse(Tokens, TokensLen, Tree)) {
         fputs("Error: Parsing failed.\n", stderr);
         return EXIT_FAILURE;
     }
 
-    // resize to true size
-    Tree.Stats = realloc(Tree.Stats, Tree.StatsLen * sizeof(NodeStmt));
+    OutputAST(Tree);
 
-    free(Tokens);
     puts("Parsing complete.");
     puts("Begin code generation.");
 
     const char* Filepath = "bin/out.asm"; // argv[2];
 
-    if (!Generate(Filepath, &Tree)) {
+    if (!Generate(Filepath, Tree)) {
         fputs("Error: Code generation failed.\n", stderr);
         return EXIT_FAILURE;
     }
 
-    free(Tree.Stats);
     puts("Code generation complete.");
 
     system("nasm -felf64 bin/out.asm");
@@ -94,5 +99,7 @@ i32 main(i32 argc, char** argv) {
 
     puts("\nCompilation complete!");
 
-    return 0;
+    DestroyMemArena();
+
+    return EXIT_SUCCESS;
 }

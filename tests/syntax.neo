@@ -10,13 +10,13 @@ $ Entry point.
 
 main(i32: argc, i8[][]: argv) -> i32:
 
-	$ RET, CONT & BREAK
+	$ 'ret', 'cont', 'break' and 'exit'
       close a scope. A scope must
   	  use one of these calls to
   	  mark its end. $
 
 	if true:
-		ret 10.;
+		ret 10;
 
 	$ Static type system. $	
 	i64: _var = 7;
@@ -27,15 +27,14 @@ main(i32: argc, i8[][]: argv) -> i32:
 	$ Hash any value by 'hash' operator. $
 	u32: HashVal = #_var;	
 
-	$ Variables are constant by
-	  default, "mutable" variables
-	  are made by 'var' keyword. $
-	
-	$ Mutable character array,
-	  i.e a string. $
-	var i8[]: Str = "Hello_World!";
+    $ Neolang is const by default,
+      mutable variables are made
+      with 'var' specifier. $
+    b8: var Boolean = false;
 
-	ret 0;
+    $ Exit keyword calls system exit
+      with integer literal exit code. $
+    if var: exit !var;
 
-
+    ret var;
 
