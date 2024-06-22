@@ -15,78 +15,55 @@ static const u8    BYTESIZE[] = {
     [_BI_U32] = 4, [_BI_F32] = 4, [_BI_I64] = 8, [_BI_U64] = 8, [_BI_F64] = 8
 };
 
-static b8 GenerateExpr(const NodeExpr* Expr) {
+static b8 GenerateTerm(const NodeTerm* Term) {
 
-    if (Expr->Holds == _NODE_NUMLIT) {
-        if (Expr->NumLit->Num.Subtype == _NUMLIT_INT) {
-            PushStack((char*)Expr->NumLit->Num.Value);
+    if (Term->Holds == _TERM_NUMLIT) {
+        if (Term->NumLit->Num.Subtype == _NUMLIT_INT) {
+            PushStack((char*)Term->NumLit->Num.Value);
             return true;
         }
 
         char Buf[20];
-        sprintf(Buf, "__float32__(%s)", (char*)Expr->NumLit->Num.Value);
+        sprintf(Buf, "__float32__(%s)", (char*)Term->NumLit->Num.Value);
         PushStack(Buf);
     }
 
-    else if (Expr->Holds == _NODE_STRLIT) {
-        // TODO: add strings
-    }
+    else if (Term->Holds == _TERM_IDENT) {
 
-    else if (Expr->Holds == _NODE_ID) {
+        Variable* Var = FindVar(Term->Ident);
 
-        for (u64 i = 0; i < State->VarCount; ++i) {
-            const Variable* Var = &State->VarRegistry[i];
-
-            if (strcmp((char*)Expr->Ident->Id.Value, Var->Ident->Id.Value) != 0) { continue; }
-
-            // printf("Var: %-7s Index: %-7lu\n", (char*)Var->Ident->Id.Value, Var->StackIndex);
-
-            // variable identifier exists
-            char VarValue[100];
-            sprintf(
-                VarValue, "QWORD [rsp + %i]", (i32)(((State->StackPtr - Var->StackIndex) * 8) - 8)
+        if (!Var) {
+            fprintf(
+                stderr, "GenError: Variable '%s' doesn't exist.\n", (char*)Term->Ident->Id.Value
             );
-
-            PushStack(VarValue);
-
-            return true;
+            return false;
         }
 
-        fprintf(
-            stderr, "GenError: Variable identifier '%s' doesn't exist.\n",
-            (char*)Expr->Ident->Id.Value
-        );
-        return false;
+        if (!Var->Ident->IsInit) {
+            fprintf(
+                stderr, "GenError: Accessing unitialized variable '%s'.\n",
+                (char*)Term->Ident->Id.Value
+            );
+            return false;
+        }
+
+        char VarValue[100];
+        sprintf(VarValue, "QWORD [rsp + %i]", (i32)(((State->StackPtr - Var->StackIndex) * 8) - 8));
+        PushStack(VarValue);
+
+        return true;
     }
 
     else {
-        fputs("GenError: Expression type not set.\n", stderr);
+        fputs("GenError: Invalid term.\n", stderr);
         return false;
     }
 
     return true;
 }
 
-static b8 GenerateDecl(const NodeStmtDecl* Decl) {
-    for (u64 i = 0; i < State->VarCount; ++i) {
-
-        // variable identifier already taken
-        if (strcmp((char*)Decl->Ident->Id.Value, State->VarRegistry[i].Ident->Id.Value) == 0) {
-            fprintf(
-                stderr, "GenError: Variable identifier '%s' already taken at stack position %lu.\n",
-                (char*)Decl->Ident->Id.Value, State->VarRegistry[i].StackIndex
-            );
-            return false;
-        }
-    }
-
-    // new variable
-    RegisterVar(Decl->Ident, BYTESIZE[Decl->Type]);
-
-    if (!GenerateExpr(Decl->Expr)) {
-        fputs("GenError: Could not generate code for declaration expression.\n", stderr);
-        return false;
-    }
+static b8 GenerateExpr(const NodeExpr* Expr) {
+    if (!GenerateTerm(Expr->Term)) { fputs("GenError: Could not generate expression.\n", stderr); }
 
     return true;
 }
@@ -94,7 +71,7 @@ static b8 GenerateDecl(const NodeStmtDecl* Decl) {
 static b8 GenerateExit(const NodeStmtExit* Exit) {
 
     if (!GenerateExpr(Exit->Expr)) {
-        fputs("GenError: Could not generate source code for expression.\n", stderr);
+        fputs("GenError: Could not generate expression.\n", stderr);
         return false;
     }
 
@@ -105,24 +82,115 @@ static b8 GenerateExit(const NodeStmtExit* Exit) {
     return true;
 }
 
+static b8 GenerateDef(const NodeStmtDef* Def) {
+    Variable* Var = FindVar(Def->Ident);
+
+    if (Var) {
+        fprintf(
+            stderr, "GenError: Variable '%s' already taken at stack position %lu.\n",
+            (char*)Def->Ident->Id.Value, Var->StackIndex
+        );
+        return false;
+    }
+
+    // new variable
+    RegisterVar(Def->Ident, BYTESIZE[Def->Type]);
+
+    if (!GenerateExpr(Def->Expr)) { return false; }
+
+    return true;
+}
+
+static b8 GenerateDecl(const NodeStmtDecl* Decl) {
+    Variable* Var = FindVar(Decl->Ident);
+
+    if (Var) {
+        fprintf(
+            stderr, "GenError: Variable '%s' already taken at stack position %lu.\n",
+            (char*)Decl->Ident->Id.Value, Var->StackIndex
+        );
+        return false;
+    }
+
+    // new variable
+    RegisterVar(Decl->Ident, BYTESIZE[Decl->Type]);
+
+    return true;
+}
+
+static b8 GenerateAsgn(const NodeStmtAsgn* Asgn) {
+
+    Variable* Var = FindVar(Asgn->Ident);
+    if (!Var) {
+        fprintf(stderr, "GenError: Variable '%s' doesn't exist.\n", (char*)Var->Ident->Id.Value);
+        return false;
+    }
+
+    if (!Var->Ident->IsMutable) {
+        fprintf(
+            stderr, "GenError: Trying to modify constant variable '%s'.\n",
+            (char*)Asgn->Ident->Id.Value
+        );
+        return false;
+    }
+
+    if (!GenerateExpr(Asgn->Expr)) { return false; }
+
+    // top of stack contains
+    // result of assignment expression.
+
+    if (Var->Ident->IsInit) {
+        PopStack("rax");
+
+        // move expression value
+        // from rax to variable
+        // stack location.
+        fprintf(
+            State->Out, "       mov [rsp + %i], rax\n",
+            (i32)(((State->StackPtr - Var->StackIndex) * 8) - 8)
+        );
+    }
+
+    else {
+        Var->Ident->IsInit = true;
+        Var->StackIndex    = State->StackPtr++;
+    }
+
+    return true;
+}
+
 static b8 GenerateStmt(const NodeStmt* Stmt) {
 
-    if (Stmt->Holds == _NODE_STMT_EXIT) {
+    if (Stmt->Holds == _STMT_EXIT) {
         if (!GenerateExit(Stmt->Exit)) {
             fputs("GenError: Could not generate code for exit statement.\n", stderr);
             return false;
         }
     }
 
-    else if (Stmt->Holds == _NODE_STMT_DECL) {
+    else if (Stmt->Holds == _STMT_ASGN) {
+        if (!GenerateAsgn(Stmt->Asgn)) {
+            fputs("GenError: Could not generate assignment statement.\n", stderr);
+            return false;
+        }
+    }
+
+    else if (Stmt->Holds == _STMT_DECL) {
         if (!GenerateDecl(Stmt->Decl)) {
-            fputs("GenError: Could not generate code for declaration statement.\n", stderr);
+            fputs("GenError: Could not generate declaration statement.\n", stderr);
+            return false;
+        }
+    }
+
+    else if (Stmt->Holds == _STMT_DEF) {
+        if (!GenerateDef(Stmt->Def)) {
+            fputs("GenError: Could not generate definition statement.\n", stderr);
             return false;
         }
     }
 
     else {
-        fputs("GenError: Invalid statement type.\n", stderr);
+        fputs("GenError: Invalid statement.\n", stderr);
         return false;
     }
 

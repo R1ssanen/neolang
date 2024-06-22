@@ -80,9 +80,9 @@ i32 main(i32 argc, char** argv) {
         return EXIT_FAILURE;
     }
 
+    puts("Parsing complete.");
     OutputAST(Tree);
 
-    puts("Parsing complete.");
     puts("Begin code generation.");
 
     const char* Filepath = "bin/out.asm"; // argv[2];

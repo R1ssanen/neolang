@@ -9,31 +9,40 @@
 #include "node_types.h"
 #include "parser.h"
 
-static b8 ParseExpr(NodeExpr* Expr) {
-    if (Peek(0)->Type == _NUMLIT) {
-        Expr->NumLit  = Alloc(NodeExprNumLit, 1);
-        *Expr->NumLit = (NodeExprNumLit){ .Num = *Peek(0) };
-        Expr->Holds   = _NODE_NUMLIT;
+static b8 ParseTerm(NodeTerm* Term) {
+    if (Peek(0) && Peek(0)->Type == _NUMLIT) {
+        Term->NumLit  = Alloc(NodeTermNumLit, 1);
+        *Term->NumLit = (NodeTermNumLit){ .Num = *Peek(0) };
+        Term->Holds   = _TERM_NUMLIT;
     }
 
-    else if (Peek(0)->Type == _STRLIT) {
-        Expr->StrLit  = Alloc(NodeExprStrLit, 1);
-        *Expr->StrLit = (NodeExprStrLit){ .Str = *Peek(0) };
-        Expr->Holds   = _NODE_STRLIT;
-    }
-
-    else if (Peek(0)->Type == _ID) {
-        Expr->Ident  = Alloc(NodeExprId, 1);
-        *Expr->Ident = (NodeExprId){ .Id = *Peek(0) };
-        Expr->Holds  = _NODE_ID;
+    else if (Peek(0) && Peek(0)->Type == _ID) {
+        Term->Ident  = Alloc(NodeTermIdent, 1);
+        *Term->Ident = (NodeTermIdent){ .Id = *Peek(0) };
+        Term->Holds  = _TERM_IDENT;
     }
 
     else {
-        fprintf(stderr, "SyntaxError: Invalid expression; got '%s'.\n", (char*)Peek(0)->Value);
+        fprintf(
+            stderr, "SyntaxError: Invalid term; got '%s'.\n",
+            Peek(0) ? (char*)Peek(0)->Value : "null"
+        );
         return false;
     }
 
     Consume();
+    return true;
+}
+
+static b8 ParseExpr(NodeExpr* Expr) {
+    Expr->Holds = _TERM;
+    Expr->Term  = Alloc(NodeTerm, 1);
+
+    if (!ParseTerm(Expr->Term)) {
+        fputs("SyntaxError: Invalid term.\n", stderr);
+        return false;
+    }
+
     return true;
 }
 
@@ -43,7 +52,7 @@ static b8 ParseStmt(NodeStmt* Stmt) {
     if (Peek(0) && Peek(0)->Subtype == _KEY_EXIT) {
         Consume(); // exit
 
-        Stmt->Holds   = _NODE_STMT_EXIT;
+        Stmt->Holds   = _STMT_EXIT;
 
         Stmt->Exit    = Alloc(NodeStmtExit, 1);
         *(Stmt->Exit) = (NodeStmtExit){ .Expr = Alloc(NodeExpr, 1) };
@@ -54,11 +63,31 @@ static b8 ParseStmt(NodeStmt* Stmt) {
         }
     }
 
-    // declaration, expects [type][:][id]
-    else if (Peek(0) && Peek(0)->Type == _KEY && Peek(1) && Peek(1)->Subtype == _SPEC_COLON &&
-             Peek(2) && Peek(2)->Type == _ID) {
+    // assignment, expects [id][=][expr]
+    else if (Peek(0) && Peek(0)->Type == _ID && Peek(1) && Peek(1)->Subtype == _OP_EQ) {
 
-        Stmt->Holds       = _NODE_STMT_DECL;
+        Stmt->Holds = _STMT_ASGN;
+        Token Ident = *Peek(0);
+
+        Consume(); // id
+        Consume(); // equals
+
+        Stmt->Asgn       = Alloc(NodeStmtAsgn, 1);
+        Stmt->Asgn->Expr = Alloc(NodeExpr, 1);
+
+        if (!ParseExpr(Stmt->Asgn->Expr)) {
+            fputs("SyntaxError: Invalid assignment expression.", stderr);
+            return false;
+        }
+
+        Stmt->Asgn->Ident    = Alloc(NodeTermIdent, 1);
+        *(Stmt->Asgn->Ident) = (NodeTermIdent){ .Id = Ident };
+    }
+
+    // definition or declaration, expects [type][:]
+    else if (Peek(0) && Peek(0)->Type == _KEY && Peek(1) && Peek(1)->Subtype == _SPEC_COLON) {
+
+        Stmt->Holds       = _STMT_DEF;
         TokenSubtype Type = Peek(0)->Subtype;
 
         Consume(); // type
@@ -72,37 +101,40 @@ static b8 ParseStmt(NodeStmt* Stmt) {
         Token Ident = *Peek(0);
         Consume(); // id
 
-        // uninitialized variable
+        // declaration
         if (Peek(0) && Peek(0)->Subtype == _SPEC_SEMI) {
             Consume(); // semi
+
+            Stmt->Holds       = _STMT_DECL;
+
+            Stmt->Decl        = Alloc(NodeStmtDecl, 1);
+            Stmt->Decl->Type  = Type;
+            Stmt->Decl->Ident = Alloc(NodeTermIdent, 1);
+            *(Stmt->Decl->Ident) =
+                (NodeTermIdent){ .Id = Ident, .IsMutable = IsMutable, .IsInit = false };
+
             return true;
         }
 
-        // assignment, expects [=][expr]
+        // definition, expects [=][expr]
         if (Peek(0) && Peek(0)->Subtype == _OP_EQ) {
             Consume(); // equals
 
-            Stmt->Decl       = Alloc(NodeStmtDecl, 1);
-            Stmt->Decl->Expr = Alloc(NodeExpr, 1);
+            Stmt->Def       = Alloc(NodeStmtDef, 1);
+            Stmt->Def->Expr = Alloc(NodeExpr, 1);
 
-            if (!ParseExpr(Stmt->Decl->Expr)) {
+            if (!ParseExpr(Stmt->Def->Expr)) {
                 fputs("SyntaxError: Invalid assignment expression.", stderr);
                 return false;
             }
 
-            Stmt->Decl->Type     = Type;
-            Stmt->Decl->Ident    = Alloc(NodeExprId, 1);
-            *(Stmt->Decl->Ident) = (NodeExprId){ .Id = Ident, .IsMutable = IsMutable };
-        }
-
-        // uninitialized variable
-        else if (Peek(0) && Peek(0)->Subtype == _SPEC_SEMI) {
-            printf("ParserInfo: Uninitialized variable '%s'.\n", (char*)Ident.Value);
-            return true;
+            Stmt->Def->Type  = Type;
+            Stmt->Def->Ident = Alloc(NodeTermIdent, 1);
+            *(Stmt->Decl->Ident) =
+                (NodeTermIdent){ .Id = Ident, .IsMutable = IsMutable, .IsInit = true };
         }
 
         else {
-            fprintf(stderr, "SyntaxError: Invalid declaration; got '%s'.\n", (char*)Peek(0)->Value);
             return false;
         }
     }

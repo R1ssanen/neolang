@@ -70,9 +70,21 @@ void PopStack(const char* Register) {
     --State->StackPtr;
 }
 
-b8 RegisterVar(const NodeExprId* Ident, u8 ByteSize) {
+b8 RegisterVar(const NodeTermIdent* Ident, u8 ByteSize) {
     State->VarRegistry[State->VarCount++] = (Variable
-    ){ .Ident = (NodeExprId*)Ident, .StackIndex = State->StackPtr, .ByteSize = ByteSize };
+    ){ .Ident = (NodeTermIdent*)Ident, .StackIndex = State->StackPtr, .ByteSize = ByteSize };
 
     return true;
+}
+
+Variable* FindVar(const struct NodeTermIdent* Ident) {
+    const char* Id = (char*)Ident->Id.Value;
+
+    for (u64 i = 0; i < State->VarCount; ++i) {
+        if (strcmp(Id, (char*)State->VarRegistry[i].Ident->Id.Value) == 0) {
+            return State->VarRegistry + i;
+        }
+    }
+
+    return NULL;
 }

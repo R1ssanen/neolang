@@ -11,35 +11,54 @@
 #include "../types.h"
 
 typedef enum NodeType {
-    _NODE_INVALID   = 0,
+    _NODE_INVALID = 0,
 
-    _NODE_NUMLIT    = 0x00000001,
-    _NODE_STRLIT    = 0x00000002,
-    _NODE_ID        = 0x00000004,
-    _NODE_EXPR      = 0x00000008,
-    _NODE_STMT      = 0x00000010,
-    _NODE_STMT_EXIT = 0x00000020,
-    _NODE_STMT_DECL = 0x00000040,
+    _TERM         = 0x00000001,
+    _TERM_NUMLIT  = 0x00000002,
+    _TERM_IDENT   = 0x00000004,
+
+    _EXPR         = 0x00000100,
+
+    _STMT         = 0x00001000,
+    _STMT_EXIT    = 0x00002000,
+    _STMT_DECL    = 0x00004000,
+    _STMT_ASGN    = 0x00008000,
+    _STMT_DEF     = 0x00010000
 } NodeType;
 
-typedef struct NodeExprNumLit {
+struct NodeTermNumLit;
+struct NodeTermIdent;
+struct NodeTerm;
+
+struct NodeExpr;
+
+struct NodeStmtExit;
+struct NodeStmtDecl;
+struct NodeStmtAsgn;
+struct NodeStmtDef;
+
+typedef struct NodeTermNumLit {
     Token Num;
-} NodeExprNumLit;
+} NodeTermNumLit;
 
-typedef struct NodeExprStrLit {
-    Token Str;
-} NodeExprStrLit;
-
-typedef struct NodeExprId {
+typedef struct NodeTermIdent {
     Token Id;
     b8    IsMutable;
-} NodeExprId;
+    b8    IsInit;
+} NodeTermIdent;
+
+typedef struct NodeTerm {
+    union {
+        NodeTermNumLit* NumLit;
+        NodeTermIdent*  Ident;
+    };
+
+    NodeType Holds;
+} NodeTerm;
 
 typedef struct NodeExpr {
     union {
-        NodeExprNumLit* NumLit;
-        NodeExprStrLit* StrLit;
-        NodeExprId*     Ident;
+        NodeTerm* Term;
     };
 
     NodeType Holds;
@@ -50,15 +69,27 @@ typedef struct NodeStmtExit {
 } NodeStmtExit;
 
 typedef struct NodeStmtDecl {
-    TokenSubtype Type;
-    NodeExprId*  Ident;
-    NodeExpr*    Expr;
+    NodeTermIdent* Ident;
+    TokenSubtype   Type;
 } NodeStmtDecl;
+
+typedef struct NodeStmtAsgn {
+    NodeTermIdent* Ident;
+    NodeExpr*      Expr;
+} NodeStmtAsgn;
+
+typedef struct NodeStmtDef {
+    NodeTermIdent* Ident;
+    NodeExpr*      Expr;
+    TokenSubtype   Type;
+} NodeStmtDef;
 
 typedef struct NodeStmt {
     union {
         NodeStmtExit* Exit;
         NodeStmtDecl* Decl;
+        NodeStmtAsgn* Asgn;
+        NodeStmtDef*  Def;
     };
 
     NodeType Holds;

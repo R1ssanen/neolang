@@ -11,12 +11,12 @@
 
 #include "../types.h"
 
-struct NodeExprId;
+struct NodeTermIdent;
 
 typedef struct Variable {
-    struct NodeExprId* Ident;
-    u64                StackIndex;
-    u8                 ByteSize;
+    struct NodeTermIdent* Ident;
+    u64                   StackIndex;
+    u8                    ByteSize;
 } Variable;
 
 struct NodeRoot;
@@ -39,6 +39,7 @@ b8                DestroyGenerator(void);
 void              PushStack(const char* Register);
 void              PopStack(const char* Register);
 
-b8                RegisterVar(const struct NodeExprId* Ident, u8 ByteSize);
+b8                RegisterVar(const struct NodeTermIdent* Ident, u8 ByteSize);
+Variable*         FindVar(const struct NodeTermIdent* Ident);
 
 #endif

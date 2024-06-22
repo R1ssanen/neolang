@@ -1,6 +1,6 @@
 $ Test file $
 
-i8: ExitCode = 3;
-$ u32: Uninitialized; $
+i8: var ExitCode;
+ExitCode = 69;
 
 exit ExitCode;
