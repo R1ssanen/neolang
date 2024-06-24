@@ -1,3 +1,9 @@
+/**
+ * @file util/error.h
+ * @brief Basic error structure.
+ * @author github.com/r1ssanen
+ */
+
 #ifndef ERROR_H
 #define ERROR_H
 

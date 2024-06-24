@@ -66,8 +66,9 @@ typedef enum TokenSubtype {
 
 // "+", "-", "*", "/", "=", "<", ">", "~", "#", "@"
 // "[", "]", "(", ")", "{", "}", ",", ":", ";", ".",
-// "true", "false", "ret", "if", "elif", "else", "var", "exit"
+// "true", "false", "ret", "if", "elif", "else", "var", "exit", "put"
 
 extern const TokenSubtype KEYSUBTYPES[];
+extern const TokenSubtype BISUBTYPES[];
 
 #endif

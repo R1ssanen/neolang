@@ -23,13 +23,13 @@ Error*     InitGenerator(const NodeRoot* Tree) {
     // initialize text section
     const u64 MAX_TEXTSECT_LEN = 1000000;
     State->TEXT                = Alloc(char, MAX_TEXTSECT_LEN);
-    TextEntry("SECTION .text\nglobal _start\n_start:\n");
+    TextEntry("\nSECTION .text\nglobal _start\n_start:\n");
 
     const u64 MAX_STACK_VARIABLES = 1000;
     State->VarRegistry            = Alloc(Variable, MAX_STACK_VARIABLES);
+    State->Tree                   = (NodeRoot*)Tree;
     State->VarCount               = 0;
     State->StackPtr               = 0;
-    State->Tree                   = Tree;
 
     return NO_ERROR;
 }

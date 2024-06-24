@@ -15,7 +15,7 @@ Error*         InitParser(const Token* Tokens, u64 TokensLen) {
     if (!Tokens) { return ERROR(_INVALID_ARG, "Null input tokens."); }
 
     State             = Alloc(Parser, 1);
-    State->Tokens     = Tokens;
+    State->Tokens     = (Token*)Tokens;
     State->TokensLen  = TokensLen;
     State->TokenIndex = 0;
 
@@ -27,7 +27,4 @@ Token* Peek(u32 Offset) {
     return State->Tokens + (State->TokenIndex + Offset);
 }
 
-Token* Consume(void) {
-    ++State->TokenIndex;
-    return State->Tokens + (State->TokenIndex);
-}
+Token* Consume(void) { return State->Tokens + (State->TokenIndex++); }

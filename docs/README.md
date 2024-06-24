@@ -13,6 +13,10 @@ $$\begin{align}
 \end{cases} \\
 [\text{expr}] &\to \begin{cases}
     \text{[term]} \\
+    \text{[bin\\_expr]}
+\end{cases} \\
+[\text{bin\\_expr}] &\to \begin{cases}
+    [\text{expr}] \space \text{op} \space[\text{expr}]
 \end{cases} \\
 [\text{term}] &\to \begin{cases}
     \text{num\\_lit} \\

@@ -7,10 +7,11 @@
 #include "../lexer/token_types.h"
 #include "../types.h"
 #include "../util/arena.h"
+#include "../util/error.h"
 #include "node_types.h"
 #include "parser.h"
 
-static Error* ParseTerm(NodeTerm* Term) {
+Error* ParseTerm(NodeTerm* Term) {
     if (Peek(0) && Peek(0)->Type == _NUMLIT) {
         Term->NumLit  = Alloc(NodeTermNumLit, 1);
         *Term->NumLit = (NodeTermNumLit){ .Num = *Peek(0) };
@@ -33,17 +34,63 @@ static Error* ParseTerm(NodeTerm* Term) {
     return NO_ERROR;
 }
 
-static Error* ParseExpr(NodeExpr* Expr) {
-    Expr->Holds = _TERM;
-    Expr->Term  = Alloc(NodeTerm, 1);
+Error* ParseBinExpr(NodeBinExpr* BinExpr) {
+    Error* Err   = NULL;
 
-    Error* Err  = ParseTerm(Expr->Term);
-    if (Err) { return Err; }
+    BinExpr->LHS = Alloc(NodeExpr, 1);
+    if ((Err = ParseExpr(BinExpr->LHS))) { return Err; }
+
+    BinExpr->Op  = Consume()->Subtype; // op
+
+    BinExpr->RHS = Alloc(NodeExpr, 1);
+    if ((Err = ParseExpr(BinExpr->RHS))) { return Err; }
 
     return NO_ERROR;
 }
 
-static Error* ParseStmt(NodeStmt* Stmt) {
+Error* ParseExpr(NodeExpr* Expr) {
+    Error* Err = NULL;
+
+    // term
+    if (Peek(0) && (Peek(0)->Type == _NUMLIT || Peek(0)->Type == _ID)) {
+        Expr->Holds = _TERM;
+        Expr->Term  = Alloc(NodeTerm, 1);
+
+        if ((Err = ParseTerm(Expr->Term))) { return Err; }
+
+        // binary expr
+        if (Peek(0) && Peek(0)->Type == _OP) {
+            Expr->Holds               = _BIN_EXPR;
+
+            // take a copy of term,
+            // otherwise expr->binexpr
+            // overwrites it.
+            NodeTerm* Term            = Expr->Term;
+
+            Expr->BinExpr             = Alloc(NodeBinExpr, 1);
+            Expr->BinExpr->Op         = Consume()->Subtype; // op
+
+            Expr->BinExpr->LHS        = Alloc(NodeExpr, 1);
+            Expr->BinExpr->LHS->Holds = _TERM;
+            Expr->BinExpr->LHS->Term  = Term;
+
+            Expr->BinExpr->RHS        = Alloc(NodeExpr, 1);
+            if ((Err = ParseExpr(Expr->BinExpr->RHS))) { return Err; }
+        }
+    }
+
+    else {
+        Expr->Holds   = _BIN_EXPR;
+        Expr->BinExpr = Alloc(NodeBinExpr, 1);
+
+        // binary expression
+        if ((Err = ParseBinExpr(Expr->BinExpr))) { return Err; }
+    }
+
+    return NO_ERROR;
+}
+
+Error* ParseStmt(NodeStmt* Stmt) {
     Error* Err = NULL;
 
     // exit statement, expects [exit]
@@ -90,7 +137,7 @@ static Error* ParseStmt(NodeStmt* Stmt) {
     }
 
     // definition or declaration, expects [type][:]
-    else if (Peek(0) && Peek(0)->Type == _KEY && Peek(1) && Peek(1)->Subtype == _SPEC_COLON) {
+    else if (Peek(0) && Peek(0)->Type == _BITYPE && Peek(1) && Peek(1)->Subtype == _SPEC_COLON) {
 
         Stmt->Holds       = _STMT_DEF;
         TokenSubtype Type = Peek(0)->Subtype;
@@ -158,7 +205,7 @@ static Error* ParseStmt(NodeStmt* Stmt) {
     return NO_ERROR;
 }
 
-static Error* ParseRoot(NodeRoot* Tree) {
+Error* ParseRoot(NodeRoot* Tree) {
     Error* Err = NULL;
 
     while (Peek(0)) {

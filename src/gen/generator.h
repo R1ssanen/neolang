@@ -7,8 +7,6 @@
 #ifndef GENERATOR_H
 #define GENERATOR_H
 
-#include <stdio.h>
-
 #include "../types.h"
 #include "../util/error.h"
 

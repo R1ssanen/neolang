@@ -16,7 +16,7 @@ static const u8    BYTESIZE[] = {
     [_BI_U32] = 4, [_BI_F32] = 4, [_BI_I64] = 8, [_BI_U64] = 8, [_BI_F64] = 8
 };
 
-static Error* GenerateTerm(const NodeTerm* Term) {
+Error* GenerateTerm(const NodeTerm* Term) {
 
     if (Term->Holds == _TERM_NUMLIT) {
         if (Term->NumLit->Num.Subtype == _NUMLIT_INT) {
@@ -30,19 +30,17 @@ static Error* GenerateTerm(const NodeTerm* Term) {
     }
 
     else if (Term->Holds == _TERM_IDENT) {
-
         Variable* Var = FindVar(Term->Ident);
 
         if (!Var) {
             return ERROR(
-                _SEMANTIC_ERROR, "GenError: Variable '%s' doesn't exist.",
-                (char*)Term->Ident->Id.Value
+                _SEMANTIC_ERROR, "Variable '%s' doesn't exist.", (char*)Term->Ident->Id.Value
             );
         }
 
         if (!Var->Ident->IsInit) {
             return ERROR(
-                _SEMANTIC_ERROR, "GenError: Accessing uninitialized variable '%s'.",
+                _SEMANTIC_ERROR, "Accessing uninitialized variable '%s'.",
                 (char*)Term->Ident->Id.Value
             );
         }
@@ -59,14 +57,46 @@ static Error* GenerateTerm(const NodeTerm* Term) {
     return NO_ERROR;
 }
 
-static Error* GenerateExpr(const NodeExpr* Expr) {
-    Error* Err = GenerateTerm(Expr->Term);
+Error* GenerateBinExpr(const NodeBinExpr* BinExpr) {
+    Error* Err = GenerateExpr(BinExpr->LHS);
     if (Err) { return Err; }
+
+    if ((Err = GenerateExpr(BinExpr->RHS))) { return Err; }
+
+    PopStack("rbx"); // rhs in rbx
+    PopStack("rax"); // lhs in rax
+
+    switch (BinExpr->Op) {
+    case _OP_ADD: TextEntry("\t\tadd rax, rbx\n"); break;
+    case _OP_SUB: TextEntry("\t\tsub rax, rbx\n"); break;
+    case _OP_MUL: TextEntry("\t\tmul rbx\n"); break;
+    case _OP_DIV: {
+        TextEntry("\t\txor rdx, rdx\n"); // zero rdx to avoid error
+        TextEntry("\t\tdiv rbx\n");
+    } break;
+
+    default: return ERROR(_SYNTAX_ERROR, "Invalid binary expression.");
+    }
+
+    PushStack("rax");
+    return NO_ERROR;
+}
+
+Error* GenerateExpr(const NodeExpr* Expr) {
+    Error* Err = NULL;
+
+    if (Expr->Holds == _TERM) {
+        if ((Err = GenerateTerm(Expr->Term))) { return Err; }
+    }
+
+    else if (Expr->Holds == _BIN_EXPR) {
+        if ((Err = GenerateBinExpr(Expr->BinExpr))) { return Err; }
+    }
 
     return NO_ERROR;
 }
 
-static Error* GeneratePut(const NodeStmtPut* Put) {
+Error* GeneratePut(const NodeStmtPut* Put) {
     static u8 NumStrLits = 0;
     DataEntry("\t\tstr%d db \"%s\", 10\n", NumStrLits, Put->Str);
     DataEntry("\t\tlstr%d equ $-str%d\n", NumStrLits, NumStrLits);
@@ -82,8 +112,7 @@ static Error* GeneratePut(const NodeStmtPut* Put) {
     return NO_ERROR;
 }
 
-static Error* GenerateExit(const NodeStmtExit* Exit) {
-
+Error* GenerateExit(const NodeStmtExit* Exit) {
     Error* Err = GenerateExpr(Exit->Expr);
     if (Err) { return Err; }
 
@@ -94,7 +123,7 @@ static Error* GenerateExit(const NodeStmtExit* Exit) {
     return NO_ERROR;
 }
 
-static Error* GenerateDef(const NodeStmtDef* Def) {
+Error* GenerateDef(const NodeStmtDef* Def) {
     Variable* Var = FindVar(Def->Ident);
 
     if (Var) {
@@ -113,7 +142,7 @@ static Error* GenerateDef(const NodeStmtDef* Def) {
     return NO_ERROR;
 }
 
-static Error* GenerateDecl(const NodeStmtDecl* Decl) {
+Error* GenerateDecl(const NodeStmtDecl* Decl) {
     Variable* Var = FindVar(Decl->Ident);
 
     if (Var) {
@@ -129,16 +158,17 @@ static Error* GenerateDecl(const NodeStmtDecl* Decl) {
     return NO_ERROR;
 }
 
-static Error* GenerateAsgn(const NodeStmtAsgn* Asgn) {
-
+Error* GenerateAsgn(const NodeStmtAsgn* Asgn) {
     Variable* Var = FindVar(Asgn->Ident);
+
     if (!Var) {
         return ERROR(_SEMANTIC_ERROR, "Variable '%s' doesn't exist.", (char*)Var->Ident->Id.Value);
     }
 
     if (!Var->Ident->IsMutable) {
         return ERROR(
-            _SEMANTIC_ERROR, "Trying to modify constant variable '%s'", (char*)Asgn->Ident->Id.Value
+            _SEMANTIC_ERROR, "Trying to modify constant variable '%s'.",
+            (char*)Asgn->Ident->Id.Value
         );
     }
 
@@ -164,7 +194,7 @@ static Error* GenerateAsgn(const NodeStmtAsgn* Asgn) {
     return NO_ERROR;
 }
 
-static Error* GenerateStmt(const NodeStmt* Stmt) {
+Error* GenerateStmt(const NodeStmt* Stmt) {
     Error* Err = NULL;
 
     switch (Stmt->Holds) {
@@ -191,7 +221,7 @@ static Error* GenerateStmt(const NodeStmt* Stmt) {
     return NO_ERROR;
 }
 
-static Error* GenerateRoot(const NodeRoot* Tree) {
+Error* GenerateRoot(const NodeRoot* Tree) {
     Error* Err = NULL;
 
     for (u64 i = 0; i < Tree->StatsLen; ++i) {
@@ -203,26 +233,19 @@ static Error* GenerateRoot(const NodeRoot* Tree) {
     return NO_ERROR;
 }
 
-Error* Generate(const char* Filepath, const NodeRoot* Tree) {
-    if (!Filepath) { return ERROR(_INVALID_ARG, "Null output filepath."); }
+Error* Generate(const NodeRoot* Tree, char* AsmSource) {
     if (!Tree) { return ERROR(_INVALID_ARG, "Null input AST."); }
+    if (!AsmSource) { return ERROR(_INVALID_ARG, "Null output source string."); }
 
     Error* Err = InitGenerator(Tree);
     if (Err) { return Err; }
 
     if ((Err = GenerateRoot(Tree))) { return Err; }
 
-    FILE* Asm = fopen(Filepath, "w");
-    if (!Asm) {
-        return ERROR(_RUNTIME_ERROR, "Could not open output file '%s' for write.", Filepath);
-    }
-
-    fprintf(Asm, "%s\n\n", State->DATA);
-    fprintf(Asm, "%s", State->TEXT);
-
-    if (fclose(Asm) != 0) {
-        return ERROR(_RUNTIME_ERROR, "Could not close output file '%s'.", Filepath);
-    }
+    strcat(AsmSource, State->DATA);
+    strcat(AsmSource, State->TEXT);
+    // sprintf(AsmSource, "%s\n\n", State->DATA);
+    // sprintf(AsmSource, "%s", State->TEXT);
 
     return NO_ERROR;
 }

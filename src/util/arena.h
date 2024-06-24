@@ -1,3 +1,9 @@
+/**
+ * @file util/arena.h
+ * @brief Arena memory allocator.
+ * @author github.com/r1ssanen
+ */
+
 #ifndef ARENA_H
 #define ARENA_H
 

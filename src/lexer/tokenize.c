@@ -19,10 +19,8 @@ Error* Tokenize(const char* Source, u64 SourceLen, Token* Tokens, u64* TokensLen
     Error* Err = InitTokenizer(Source, SourceLen);
     if (Err) { return Err; }
 
-    // for every bite
     while (PeekBite(0)) {
 
-        // for every character
         while (PeekChar(0)) {
 
             // skip whitespace
@@ -30,28 +28,34 @@ Error* Tokenize(const char* Source, u64 SourceLen, Token* Tokens, u64* TokensLen
 
             // special character
             if (strchr(SPECIAL_SYMBOLS, PeekChar(0))) {
-                Token Token            = { .Type    = _SPEC,
-                                           .Subtype = (TokenSubtype)(PeekChar(0)),
-                                           .Value   = malloc(sizeof(char)) };
-                *(char*)(Token.Value)  = PeekChar(0);
+                Token Token = { .Type    = _SPEC,
+                                .Subtype = (TokenSubtype)(PeekChar(0)),
+                                .Value   = Alloc(char, 2) };
+
+                strcpy((char*)Token.Value, (char[2]){ PeekChar(0), '\0' });
+
+                Tokens[(*TokensLen)++] = Token;
+                ConsumeChar();
+            }
+
+            // operator
+            else if (strchr(OPERATORS, PeekChar(0))) {
+                Token Token = { .Type    = _OP,
+                                .Subtype = (TokenSubtype)(PeekChar(0)),
+                                .Value   = Alloc(char, 2) };
+                strcpy((char*)Token.Value, (char[2]){ PeekChar(0), '\0' });
+
                 Tokens[(*TokensLen)++] = Token;
                 ConsumeChar();
             }
 
             // numeric literal
-            // NOTE: must be before operator
-            //       to merge '-' with number
-            else if (PeekChar(0) == '-' || isdigit(PeekChar(0))) {
+            else if (isdigit(PeekChar(0))) {
                 const u64 MAX_NUMLIT_DIGITS = 100;
                 char      NumLit[MAX_NUMLIT_DIGITS];
                 u64       NumLen  = 0;
 
                 b8        IsFloat = false;
-
-                if (PeekChar(0) == '-') {
-                    NumLit[NumLen++] = '-';
-                    ConsumeChar();
-                }
 
                 while (PeekChar(0) && (isdigit(PeekChar(0)) || (PeekChar(0) == '.'))) {
                     if (PeekChar(0) == '.') {
@@ -74,18 +78,8 @@ Error* Tokenize(const char* Source, u64 SourceLen, Token* Tokens, u64* TokensLen
                                      .Subtype = IsFloat ? _NUMLIT_FLOAT : _NUMLIT_INT,
                                      .Value   = Alloc(char, NumLen) };
                 strcpy((char*)Token.Value, NumLit);
-                Tokens[(*TokensLen)++] = Token;
-            }
 
-            // operator
-            else if (strchr(OPERATORS, PeekChar(0))) {
-                Token Token            = { .Type    = _OP,
-                                           .Subtype = (TokenSubtype)(PeekChar(0)),
-                                           .Value   = malloc(sizeof(char)) };
-                *(char*)(Token.Value)  = PeekChar(0);
                 Tokens[(*TokensLen)++] = Token;
-
-                ConsumeChar();
             }
 
             // string literal
@@ -96,7 +90,6 @@ Error* Tokenize(const char* Source, u64 SourceLen, Token* Tokens, u64* TokensLen
 
                 ConsumeChar(); // opening "
                 while (PeekChar(0) && PeekChar(0) != '"') { StrLit[StrLen++] = ConsumeChar(); }
-
                 ConsumeChar(); // closing "
 
                 StrLit[StrLen++] = '\0';
@@ -128,6 +121,17 @@ Error* Tokenize(const char* Source, u64 SourceLen, Token* Tokens, u64* TokensLen
 
                     Token.Type    = _KEY;
                     Token.Subtype = KEYSUBTYPES[i];
+
+                    break;
+                }
+
+                for (u64 i = 0; BITYPES[i]; ++i) {
+                    if (strcmp(Ident, BITYPES[i]) != 0) { continue; }
+
+                    Token.Type    = _BITYPE;
+                    Token.Subtype = BISUBTYPES[i];
+
+                    break;
                 }
 
                 Tokens[(*TokensLen)++] = Token;

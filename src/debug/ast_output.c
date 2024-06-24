@@ -8,7 +8,7 @@
 #include "../util/error.h"
 #include "jWrite.h"
 
-static void OutputTerm(const NodeTerm* Term) {
+void OutputTerm(const NodeTerm* Term) {
     jw_object();
 
     jw_key("holds");
@@ -30,24 +30,47 @@ static void OutputTerm(const NodeTerm* Term) {
     jwEnd();
 }
 
-static void OutputExpr(const NodeExpr* Expr) {
+void OutputBinExpr(const NodeBinExpr* BinExpr) {
+    jw_object();
+
+    jw_key("lhs");
+    OutputExpr(BinExpr->LHS);
+
+    jw_key("rhs");
+    OutputExpr(BinExpr->RHS);
+
+    jw_key("op");
+    char OpStr[2] = { (char)BinExpr->Op, '\0' };
+    jw_string(OpStr);
+
+    jwEnd();
+}
+
+void OutputExpr(const NodeExpr* Expr) {
     jw_object();
 
     jw_key("holds");
     jw_int(Expr->Holds);
 
     switch (Expr->Holds) {
+
     case _TERM: {
         jw_key("term");
         OutputTerm(Expr->Term);
     } break;
+
+    case _BIN_EXPR: {
+        jw_key("bin_expr");
+        OutputBinExpr(Expr->BinExpr);
+    } break;
+
     default: break;
     }
 
     jwEnd();
 }
 
-static void OutputAsgn(const NodeStmtAsgn* Asgn) {
+void OutputAsgn(const NodeStmtAsgn* Asgn) {
     jw_object();
 
     jw_key("id");
@@ -59,7 +82,7 @@ static void OutputAsgn(const NodeStmtAsgn* Asgn) {
     jwEnd();
 }
 
-static void OutputDecl(const NodeStmtDecl* Decl) {
+void OutputDecl(const NodeStmtDecl* Decl) {
     jw_object();
 
     jw_key("type");
@@ -71,7 +94,7 @@ static void OutputDecl(const NodeStmtDecl* Decl) {
     jwEnd();
 }
 
-static void OutputDef(const NodeStmtDef* Def) {
+void OutputDef(const NodeStmtDef* Def) {
     jw_object();
 
     jw_key("type");
@@ -86,7 +109,7 @@ static void OutputDef(const NodeStmtDef* Def) {
     jwEnd();
 }
 
-static void OutputPut(const NodeStmtPut* Put) {
+void OutputPut(const NodeStmtPut* Put) {
     jw_object();
 
     jw_key("str");
@@ -95,7 +118,7 @@ static void OutputPut(const NodeStmtPut* Put) {
     jwEnd();
 }
 
-static void OutputExit(const NodeStmtExit* Exit) {
+void OutputExit(const NodeStmtExit* Exit) {
     jw_object();
 
     jw_key("expr");
@@ -104,7 +127,7 @@ static void OutputExit(const NodeStmtExit* Exit) {
     jwEnd();
 }
 
-static void OutputStmt(const NodeStmt* Stmt) {
+void OutputStmt(const NodeStmt* Stmt) {
     jw_object();
 
     jw_key("holds");

@@ -18,6 +18,7 @@ typedef enum NodeType {
     _TERM_IDENT   = 0x00000004,
 
     _EXPR         = 0x00000100,
+    _BIN_EXPR     = 0x00000200,
 
     _STMT         = 0x00001000,
     _STMT_EXIT    = 0x00002000,
@@ -31,6 +32,7 @@ struct NodeTermNumLit;
 struct NodeTermIdent;
 struct NodeTerm;
 
+struct NodeBinExpr;
 struct NodeExpr;
 
 struct NodeStmtExit;
@@ -58,9 +60,16 @@ typedef struct NodeTerm {
     NodeType Holds;
 } NodeTerm;
 
+typedef struct NodeBinExpr {
+    struct NodeExpr* LHS;
+    struct NodeExpr* RHS;
+    TokenSubtype     Op;
+} NodeBinExpr;
+
 typedef struct NodeExpr {
     union {
-        NodeTerm* Term;
+        NodeTerm*    Term;
+        NodeBinExpr* BinExpr;
     };
 
     NodeType Holds;
