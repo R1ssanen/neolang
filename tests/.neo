@@ -1,6 +1,6 @@
-$ Test file $
+$ neolang testfile $
 
-i8: var ExitCode;
-ExitCode = 69;
-
+i8: var ExitCode = 420;
+put "Hey hey, my my!";
+ExitCode = 7;
 exit ExitCode;

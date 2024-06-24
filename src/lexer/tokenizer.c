@@ -4,16 +4,14 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../arena.h"
 #include "../types.h"
+#include "../util/arena.h"
+#include "../util/error.h"
 
 static Tokenizer* State = NULL;
 
-b8                InitTokenizer(const char* Source, u64 SourceLen) {
-    if (!Source) {
-        fputs("TokenError: Null source input.\n", stderr);
-        return false;
-    }
+Error*            InitTokenizer(const char* Source, u64 SourceLen) {
+    if (!Source) { return ERROR(_INVALID_ARG, "Null source input."); }
 
     State                      = Alloc(Tokenizer, 1);
 
@@ -35,11 +33,7 @@ b8                InitTokenizer(const char* Source, u64 SourceLen) {
         ++Result;
     }
 
-    // unclosed comment block
-    if (WithinComment) {
-        fputs("TokenError: Unclosed comment block.\n", stderr);
-        return false;
-    }
+    if (WithinComment) { return ERROR(_SYNTAX_ERROR, "Unclosed comment block."); }
 
     // concatenate segment after last comment
     strncat(Buffer, Source + LastCommentEnd, SourceLen - LastCommentEnd);
@@ -61,16 +55,18 @@ b8                InitTokenizer(const char* Source, u64 SourceLen) {
     State->BiteIndex = 0;
     State->CharIndex = 0;
 
-    return true;
+    return NO_ERROR;
 }
-
-void DestroyTokenizer(void) { State = NULL; }
 
 char PeekChar(u64 Offset) {
     if ((State->CharIndex + Offset) >= strlen(State->CurrBite)) { return '\0'; }
     return State->CurrBite[State->CharIndex + Offset];
 }
 
+/**
+ * @brief Return current character and advance.
+ * @return Current character
+ */
 char  ConsumeChar(void) { return State->CurrBite[State->CharIndex++]; }
 
 char* PeekBite(u64 Offset) {

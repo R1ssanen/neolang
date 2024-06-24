@@ -5,27 +5,19 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../arena.h"
 #include "../types.h"
+#include "../util/arena.h"
+#include "../util/error.h"
 #include "token_subtypes.h"
 #include "token_types.h"
 #include "tokenizer.h"
 
-b8 Tokenize(const char* Source, u64 SourceLen, Token* Tokens, u64* TokensLen) {
-    if (!Source) {
-        fputs("TokenError: Tokenization failed, no sources provided.\n", stderr);
-        return false;
-    }
+Error* Tokenize(const char* Source, u64 SourceLen, Token* Tokens, u64* TokensLen) {
+    if (!Source) { return ERROR(_INVALID_ARG, "No source string to tokenize."); }
+    if (!Tokens || !TokensLen) { return ERROR(_INVALID_ARG, "Null output paratemers."); }
 
-    if (!Tokens || !TokensLen) {
-        fputs("TokenError: Tokenization failed, null output parameter.\n", stderr);
-        return false;
-    }
-
-    if (!InitTokenizer(Source, SourceLen)) {
-        fputs("TokenError: Could not initialize tokenizer.\n", stderr);
-        return false;
-    }
+    Error* Err = InitTokenizer(Source, SourceLen);
+    if (Err) { return Err; }
 
     // for every bite
     while (PeekBite(0)) {
@@ -49,19 +41,24 @@ b8 Tokenize(const char* Source, u64 SourceLen, Token* Tokens, u64* TokensLen) {
             // numeric literal
             // NOTE: must be before operator
             //       to merge '-' with number
-            else if (isdigit(PeekChar(0))) {
+            else if (PeekChar(0) == '-' || isdigit(PeekChar(0))) {
                 const u64 MAX_NUMLIT_DIGITS = 100;
                 char      NumLit[MAX_NUMLIT_DIGITS];
                 u64       NumLen  = 0;
 
                 b8        IsFloat = false;
+
+                if (PeekChar(0) == '-') {
+                    NumLit[NumLen++] = '-';
+                    ConsumeChar();
+                }
+
                 while (PeekChar(0) && (isdigit(PeekChar(0)) || (PeekChar(0) == '.'))) {
                     if (PeekChar(0) == '.') {
                         if (IsFloat) {
-                            fputs(
-                                "TokenError: Float literal with multiple decimal points.\n", stderr
+                            return ERROR(
+                                _SYNTAX_ERROR, "Float literal with multiple decimal points."
                             );
-                            return false;
                         }
 
                         IsFloat = true;
@@ -97,11 +94,10 @@ b8 Tokenize(const char* Source, u64 SourceLen, Token* Tokens, u64* TokensLen) {
                 char      StrLit[MAX_STR_LEN];
                 u64       StrLen = 0;
 
-                ConsumeChar(); // first "
-                while (PeekChar(0) && PeekChar(0) != '"') {
-                    StrLit[StrLen++] = PeekChar(0);
-                    ConsumeChar();
-                }
+                ConsumeChar(); // opening "
+                while (PeekChar(0) && PeekChar(0) != '"') { StrLit[StrLen++] = ConsumeChar(); }
+
+                ConsumeChar(); // closing "
 
                 StrLit[StrLen++] = '\0';
 
@@ -109,7 +105,6 @@ b8 Tokenize(const char* Source, u64 SourceLen, Token* Tokens, u64* TokensLen) {
                 strcpy((char*)Token.Value, StrLit);
                 Tokens[(*TokensLen)++] = Token;
 
-                ConsumeChar(); // second "
             }
 
             // identifier, keyword
@@ -139,13 +134,12 @@ b8 Tokenize(const char* Source, u64 SourceLen, Token* Tokens, u64* TokensLen) {
             }
 
             else {
-                fprintf(stderr, "TokenError: Unknown token in '%s'.\n", PeekBite(0));
-                return false;
+                return ERROR(_SYNTAX_ERROR, "Invalid token in '%s'.", PeekBite(0));
             }
         }
 
         ConsumeBite();
     }
 
-    return true;
+    return NO_ERROR;
 }

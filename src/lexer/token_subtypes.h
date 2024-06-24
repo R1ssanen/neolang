@@ -43,24 +43,25 @@ typedef enum TokenSubtype {
     _KEY_ELSE     = 0x00002000,
     _KEY_VAR      = 0x00004000,
     _KEY_EXIT     = 0x00008000,
+    _KEY_PUT      = 0x00010000,
 
     // built-in types
-    _BI_B8        = 0x000010000,
-    _BI_I8        = 0x000020000,
-    _BI_I16       = 0x000040000,
-    _BI_I32       = 0x000080000,
-    _BI_I64       = 0x000100000,
-    _BI_U8        = 0x000200000,
-    _BI_U16       = 0x000400000,
-    _BI_U32       = 0x000800000,
-    _BI_U64       = 0x001000000,
-    _BI_F32       = 0x002000000,
-    _BI_F64       = 0x004000000,
+    _BI_B8        = 0x00100000,
+    _BI_I8        = 0x00200000,
+    _BI_I16       = 0x00400000,
+    _BI_I32       = 0x00800000,
+    _BI_I64       = 0x01000000,
+    _BI_U8        = 0x02000000,
+    _BI_U16       = 0x04000000,
+    _BI_U32       = 0x08000000,
+    _BI_U64       = 0x10000000,
+    _BI_F32       = 0x20000000,
+    _BI_F64       = 0x40000000,
 
     // numeric literals
-    _NUMLIT_INT   = 0x008000000,
-    _NUMLIT_FLOAT = 0x010000000,
-    _NUMLIT_DOUBL = 0x020000000
+    _NUMLIT_INT   = 0x40000001,
+    _NUMLIT_FLOAT = 0x40000002,
+    _NUMLIT_DOUBL = 0x40000004
 } TokenSubtype;
 
 // "+", "-", "*", "/", "=", "<", ">", "~", "#", "@"

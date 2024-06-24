@@ -1,15 +1,16 @@
 #include "parse.h"
 
 #include <stdio.h>
+#include <string.h>
 
-#include "../arena.h"
 #include "../lexer/token_subtypes.h"
 #include "../lexer/token_types.h"
 #include "../types.h"
+#include "../util/arena.h"
 #include "node_types.h"
 #include "parser.h"
 
-static b8 ParseTerm(NodeTerm* Term) {
+static Error* ParseTerm(NodeTerm* Term) {
     if (Peek(0) && Peek(0)->Type == _NUMLIT) {
         Term->NumLit  = Alloc(NodeTermNumLit, 1);
         *Term->NumLit = (NodeTermNumLit){ .Num = *Peek(0) };
@@ -23,44 +24,51 @@ static b8 ParseTerm(NodeTerm* Term) {
     }
 
     else {
-        fprintf(
-            stderr, "SyntaxError: Invalid term; got '%s'.\n",
-            Peek(0) ? (char*)Peek(0)->Value : "null"
+        return ERROR(
+            _SYNTAX_ERROR, "Invalid term; got '%s'.", Peek(0) ? (char*)Peek(0)->Value : "null"
         );
-        return false;
     }
 
-    Consume();
-    return true;
+    Consume(); // term
+    return NO_ERROR;
 }
 
-static b8 ParseExpr(NodeExpr* Expr) {
+static Error* ParseExpr(NodeExpr* Expr) {
     Expr->Holds = _TERM;
     Expr->Term  = Alloc(NodeTerm, 1);
 
-    if (!ParseTerm(Expr->Term)) {
-        fputs("SyntaxError: Invalid term.\n", stderr);
-        return false;
-    }
+    Error* Err  = ParseTerm(Expr->Term);
+    if (Err) { return Err; }
 
-    return true;
+    return NO_ERROR;
 }
 
-static b8 ParseStmt(NodeStmt* Stmt) {
+static Error* ParseStmt(NodeStmt* Stmt) {
+    Error* Err = NULL;
 
     // exit statement, expects [exit]
     if (Peek(0) && Peek(0)->Subtype == _KEY_EXIT) {
         Consume(); // exit
 
         Stmt->Holds   = _STMT_EXIT;
-
         Stmt->Exit    = Alloc(NodeStmtExit, 1);
         *(Stmt->Exit) = (NodeStmtExit){ .Expr = Alloc(NodeExpr, 1) };
 
-        if (!ParseExpr(Stmt->Exit->Expr)) {
-            fputs("SyntaxError: Invalid expression.\n", stderr);
-            return false;
-        }
+        if ((Err = ParseExpr(Stmt->Exit->Expr))) { return Err; }
+    }
+
+    // print statement, expects [put][str_lit]
+    else if (Peek(0) && Peek(0)->Subtype == _KEY_PUT) {
+        Consume(); // put
+
+        Stmt->Put      = Alloc(NodeStmtPut, 1);
+
+        Stmt->Holds    = _STMT_PUT;
+        Stmt->Put      = Alloc(NodeStmtPut, 1);
+        Stmt->Put->Str = Alloc(char, strlen((char*)Peek(0)->Value) + 1);
+        strcpy(Stmt->Put->Str, (char*)Peek(0)->Value);
+
+        Consume(); // str_lit
     }
 
     // assignment, expects [id][=][expr]
@@ -75,10 +83,7 @@ static b8 ParseStmt(NodeStmt* Stmt) {
         Stmt->Asgn       = Alloc(NodeStmtAsgn, 1);
         Stmt->Asgn->Expr = Alloc(NodeExpr, 1);
 
-        if (!ParseExpr(Stmt->Asgn->Expr)) {
-            fputs("SyntaxError: Invalid assignment expression.", stderr);
-            return false;
-        }
+        if ((Err = ParseExpr(Stmt->Asgn->Expr))) { return Err; }
 
         Stmt->Asgn->Ident    = Alloc(NodeTermIdent, 1);
         *(Stmt->Asgn->Ident) = (NodeTermIdent){ .Id = Ident };
@@ -113,20 +118,17 @@ static b8 ParseStmt(NodeStmt* Stmt) {
             *(Stmt->Decl->Ident) =
                 (NodeTermIdent){ .Id = Ident, .IsMutable = IsMutable, .IsInit = false };
 
-            return true;
+            return NO_ERROR;
         }
 
         // definition, expects [=][expr]
-        if (Peek(0) && Peek(0)->Subtype == _OP_EQ) {
+        else if (Peek(0) && Peek(0)->Subtype == _OP_EQ) {
             Consume(); // equals
 
             Stmt->Def       = Alloc(NodeStmtDef, 1);
             Stmt->Def->Expr = Alloc(NodeExpr, 1);
 
-            if (!ParseExpr(Stmt->Def->Expr)) {
-                fputs("SyntaxError: Invalid assignment expression.", stderr);
-                return false;
-            }
+            if ((Err = ParseExpr(Stmt->Def->Expr))) { return Err; }
 
             Stmt->Def->Type  = Type;
             Stmt->Def->Ident = Alloc(NodeTermIdent, 1);
@@ -135,64 +137,51 @@ static b8 ParseStmt(NodeStmt* Stmt) {
         }
 
         else {
-            return false;
+            return ERROR(_SYNTAX_ERROR, "Invalid statement.");
         }
     }
 
     else {
-        fprintf(stderr, "SyntaxError: Invalid statement; got '%s'.\n", (char*)Peek(0)->Value);
-        return false;
+        return ERROR(
+            _SYNTAX_ERROR, "Invalid statement; got '%s'.", Peek(0) ? (char*)Peek(0)->Value : "null"
+        );
     }
 
-    // all statements must end in a semicolon
+    // no semicolon to end
     if (!Peek(0) || !(Peek(0)->Subtype == _SPEC_SEMI)) {
-        fprintf(
-            stderr, "SyntaxError: Missing semicolon; got '%s'.\n",
-            !Peek(0) ? "" : (char*)Peek(0)->Value
+        return ERROR(
+            _SYNTAX_ERROR, "Missing semicolon; got '%s'.", Peek(0) ? (char*)Peek(0)->Value : "null"
         );
-        return false;
     }
 
     Consume(); // semicolon
-    return true;
+    return NO_ERROR;
 }
 
-static b8 ParseRoot(NodeRoot* Tree) {
-    while (Peek(0)) {
+static Error* ParseRoot(NodeRoot* Tree) {
+    Error* Err = NULL;
 
+    while (Peek(0)) {
         NodeStmt* Stmt = Alloc(NodeStmt, 1);
-        if (ParseStmt(Stmt)) {
-            Tree->Stats[Tree->StatsLen++] = Stmt;
+
+        if ((Err = ParseStmt(Stmt))) {
+            return Err;
         } else {
-            fputs("SyntaxError: Invalid statement.\n", stderr);
-            return false;
+            Tree->Stats[Tree->StatsLen++] = Stmt;
         }
     }
 
-    return true;
+    return NO_ERROR;
 }
 
-b8 Parse(const Token* Tokens, u64 TokensLen, NodeRoot* Tree) {
-    if (!Tokens) {
-        fputs("ParseError: Null token input parameter.\n", stderr);
-        return false;
-    }
+Error* Parse(const Token* Tokens, u64 TokensLen, NodeRoot* Tree) {
+    if (!Tokens) { return ERROR(_INVALID_ARG, "No tokens to parse."); }
+    if (!Tree) { return ERROR(_INVALID_ARG, "Null output parameter."); }
 
-    if (!Tree) {
-        fputs("ParseError: Null output parameter.\n", stderr);
-        return false;
-    }
+    Error* Err = InitParser(Tokens, TokensLen);
+    if (Err) { return Err; }
 
-    if (!InitParser(Tokens, TokensLen)) {
-        fputs("ParseError: Parser initialization failed.\n", stderr);
-        return false;
-    }
+    if ((Err = ParseRoot(Tree))) { return Err; }
 
-    if (!ParseRoot(Tree)) {
-        fputs("ParseError: Could not parse to exit statement.\n", stderr);
-        return false;
-    }
-
-    DestroyParser();
-    return true;
+    return NO_ERROR;
 }

@@ -4,33 +4,23 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../arena.h"
 #include "../lexer/token_types.h"
 #include "../types.h"
+#include "../util/arena.h"
+#include "../util/error.h"
 
 static Parser* State = NULL;
 
-b8             InitParser(const Token* Tokens, u64 TokensLen) {
-    if (!Tokens) {
-        fputs("ParseError: Null input tokens.\n", stderr);
-        return false;
-    }
+Error*         InitParser(const Token* Tokens, u64 TokensLen) {
+    if (!Tokens) { return ERROR(_INVALID_ARG, "Null input tokens."); }
 
-    State         = Alloc(Parser, 1);
-    State->Tokens = Alloc(Token, TokensLen);
-
-    if (!memcpy((void*)State->Tokens, (const void*)Tokens, TokensLen * sizeof(Token))) {
-        fputs("Error: memcpy failed at 'InitParser'.\n", stderr);
-        return false;
-    }
-
+    State             = Alloc(Parser, 1);
+    State->Tokens     = Tokens;
     State->TokensLen  = TokensLen;
     State->TokenIndex = 0;
 
-    return true;
+    return NO_ERROR;
 }
-
-void   DestroyParser(void) { State = NULL; }
 
 Token* Peek(u32 Offset) {
     if ((State->TokenIndex + Offset) >= State->TokensLen) { return NULL; }

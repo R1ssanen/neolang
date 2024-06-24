@@ -9,9 +9,10 @@
 
 #include "../lexer/token_types.h"
 #include "../types.h"
+#include "../util/error.h"
 
 struct NodeRoot;
 
-b8 Parse(const Token* Tokens, u64 TokensLen, struct NodeRoot* Tree);
+Error* Parse(const Token* Tokens, u64 TokensLen, struct NodeRoot* Tree);
 
 #endif

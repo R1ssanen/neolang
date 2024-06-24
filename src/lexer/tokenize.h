@@ -7,9 +7,10 @@
 #ifndef TOKENIZE_H
 #define TOKENIZE_H
 
+#include "../util/error.h"
 #include "token_types.h"
 #include "types.h"
 
-b8 Tokenize(const char* Source, u64 SourceLen, Token* Tokens, u64* TokensLen);
+Error* Tokenize(const char* Source, u64 SourceLen, Token* Tokens, u64* TokensLen);
 
 #endif

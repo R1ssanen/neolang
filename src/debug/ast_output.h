@@ -2,9 +2,10 @@
 #define AST_OUTPUT_H
 
 #include "../types.h"
+#include "../util/error.h"
 
 struct NodeRoot;
 
-b8 OutputAST(const struct NodeRoot* Tree);
+Error* OutputAST(const struct NodeRoot* Tree, const char* Filename);
 
 #endif

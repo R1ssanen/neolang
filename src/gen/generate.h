@@ -8,9 +8,10 @@
 #define GENERATE_H
 
 #include "../types.h"
+#include "../util/error.h"
 
 struct NodeRoot;
 
-b8 Generate(const char* Filepath, const struct NodeRoot* Tree);
+Error* Generate(const char* Filepath, const struct NodeRoot* Tree);
 
 #endif

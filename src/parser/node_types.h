@@ -21,9 +21,10 @@ typedef enum NodeType {
 
     _STMT         = 0x00001000,
     _STMT_EXIT    = 0x00002000,
-    _STMT_DECL    = 0x00004000,
-    _STMT_ASGN    = 0x00008000,
-    _STMT_DEF     = 0x00010000
+    _STMT_PUT     = 0x00004000,
+    _STMT_DECL    = 0x00008000,
+    _STMT_ASGN    = 0x00010000,
+    _STMT_DEF     = 0x00020000
 } NodeType;
 
 struct NodeTermNumLit;
@@ -33,6 +34,7 @@ struct NodeTerm;
 struct NodeExpr;
 
 struct NodeStmtExit;
+struct NodeStmtPut;
 struct NodeStmtDecl;
 struct NodeStmtAsgn;
 struct NodeStmtDef;
@@ -68,6 +70,10 @@ typedef struct NodeStmtExit {
     NodeExpr* Expr;
 } NodeStmtExit;
 
+typedef struct NodeStmtPut {
+    char* Str;
+} NodeStmtPut;
+
 typedef struct NodeStmtDecl {
     NodeTermIdent* Ident;
     TokenSubtype   Type;
@@ -87,6 +93,7 @@ typedef struct NodeStmtDef {
 typedef struct NodeStmt {
     union {
         NodeStmtExit* Exit;
+        NodeStmtPut*  Put;
         NodeStmtDecl* Decl;
         NodeStmtAsgn* Asgn;
         NodeStmtDef*  Def;

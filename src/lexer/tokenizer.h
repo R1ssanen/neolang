@@ -2,6 +2,7 @@
 #define TOKENIZER_H
 
 #include "../types.h"
+#include "../util/error.h"
 
 typedef struct Tokenizer {
     char** Bites;
@@ -12,13 +13,11 @@ typedef struct Tokenizer {
     u64    CharIndex;
 } Tokenizer;
 
-b8    InitTokenizer(const char* Source, u64 SourceLen);
+Error* InitTokenizer(const char* Source, u64 SourceLen);
 
-void  DestroyTokenizer(void);
-
-char  PeekChar(u64 Offset);
-char  ConsumeChar(void);
-char* PeekBite(u64 Offset);
-char* ConsumeBite(void);
+char   PeekChar(u64 Offset);
+char   ConsumeChar(void);
+char*  PeekBite(u64 Offset);
+char*  ConsumeBite(void);
 
 #endif

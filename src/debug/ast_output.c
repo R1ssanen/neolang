@@ -5,6 +5,7 @@
 
 #include "../parser/node_types.h"
 #include "../types.h"
+#include "../util/error.h"
 #include "jWrite.h"
 
 static void OutputTerm(const NodeTerm* Term) {
@@ -85,6 +86,15 @@ static void OutputDef(const NodeStmtDef* Def) {
     jwEnd();
 }
 
+static void OutputPut(const NodeStmtPut* Put) {
+    jw_object();
+
+    jw_key("str");
+    jw_string(Put->Str);
+
+    jwEnd();
+}
+
 static void OutputExit(const NodeStmtExit* Exit) {
     jw_object();
 
@@ -105,6 +115,10 @@ static void OutputStmt(const NodeStmt* Stmt) {
         jw_key("exit");
         OutputExit(Stmt->Exit);
     } break;
+    case _STMT_PUT: {
+        jw_key("print");
+        OutputPut(Stmt->Put);
+    } break;
     case _STMT_ASGN: {
         jw_key("asgn");
         OutputAsgn(Stmt->Asgn);
@@ -123,35 +137,27 @@ static void OutputStmt(const NodeStmt* Stmt) {
     jwEnd();
 }
 
-b8 OutputAST(const NodeRoot* Tree) {
-    if (!Tree) {
-        fputs("DebugError: Null input parameter.\n", stderr);
-        return false;
-    }
+Error* OutputAST(const NodeRoot* Tree, const char* Filename) {
+    if (!Tree) { return ERROR(_INVALID_ARG, "Null input AST."); }
 
     char AST[100000];
-    jwOpen(AST, 100000, JW_OBJECT, JW_PRETTY);
+    jwOpen(AST, 100000, JW_ARRAY, JW_PRETTY);
 
-    jw_key("statements");
-    jw_array();
     for (u32 i = 0; i < Tree->StatsLen; ++i) { OutputStmt(Tree->Stats[i]); }
-    jwEnd();
 
     jwEnd();
     jwClose();
 
-    puts("\nAbstract Syntax Tree:");
-    printf("\t%s\n", AST);
-    putchar('\n');
-
-    FILE* Json = fopen("bin/ast.json", "w");
-    if (!Json) {
-        fputs("DebugError: Could not open 'bin/ast.json' for write.\n", stderr);
-        return false;
+    FILE* JsonFile = fopen(Filename, "w");
+    if (!JsonFile) {
+        return ERROR(_RUNTIME_ERROR, "Could not open output file '%s' for write.", Filename);
     }
 
-    fprintf(Json, "%s", AST);
-    fclose(Json);
+    fputs(AST, JsonFile);
 
-    return true;
+    if (fclose(JsonFile) != 0) {
+        return ERROR(_RUNTIME_ERROR, "Could not close output file '%s'.", Filename);
+    }
+
+    return NO_ERROR;
 }

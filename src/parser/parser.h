@@ -9,6 +9,7 @@
 
 #include "../lexer/token_types.h"
 #include "../types.h"
+#include "../util/error.h"
 
 typedef struct Parser {
     Token* Tokens;
@@ -16,14 +17,10 @@ typedef struct Parser {
     u64    TokenIndex;
 } Parser;
 
-b8     InitParser(const Token* Tokens, u64 TokensLen);
-
-void   DestroyParser(void);
+Error* InitParser(const Token* Tokens, u64 TokensLen);
 
 Token* Peek(u32 Offset);
 
 Token* Consume(void);
-
-b8     AtLeast(u32 Count);
 
 #endif

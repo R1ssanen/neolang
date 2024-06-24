@@ -4,7 +4,9 @@ project(
   VERSION 24.1.0
   DESCRIPTION "Programming Language Learning"
   LANGUAGES C)
+
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
+
 add_executable(
   ${PROJECT_NAME}
   "src/entry.c"
@@ -16,13 +18,14 @@ add_executable(
   "src/parser/parser.c"
   "src/gen/generate.c"
   "src/gen/generator.c"
-  "src/arena.c"
+  "src/util/arena.c"
+  "src/util/error.c"
   "src/debug/ast_output.c"
   "src/debug/jWrite.c")
 
 set_target_properties(
   ${PROJECT_NAME}
-  PROPERTIES C_STANDARD 11
+  PROPERTIES C_STANDARD 17
              C_STANDARD_REQUIRED TRUE
              LINKER_LANGUAGE C
              VERSION ${PROJECT_VERSION})

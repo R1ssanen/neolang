@@ -2,13 +2,12 @@
 
 #include <string.h>
 
-const char* SPECIAL_SYMBOLS = "[](){},:;.";
-const char* OPERATORS       = "+-*/=<>~#@";
+const char*        SPECIAL_SYMBOLS    = "[](){},:;.";
+const char*        OPERATORS          = "+-*/=<>~#@";
 
-const char* KEYWORDS[]      = {
-    "true", "false", "ret", "if", "elif", "else", "var", "exit", "b8",  "i8",
-    "i16",  "i32",   "i64", "u8", "u16",  "u32",  "u64", "f32",  "f64", NULL
-};
+const char*        KEYWORDS[]         = { "true", "false", "ret", "if",  "elif", "else", "var",
+                                          "exit", "put",   "b8",  "i8",  "i16",  "i32",  "i64",
+                                          "u8",   "u16",   "u32", "u64", "f32",  "f64",  NULL };
 
 static const char* s_TypeDebugNames[] = {
     [_INVALID] = "_INVALID", [_ID] = "_ID",     [_KEY] = "_KEY",      [_OP] = "_OP",
