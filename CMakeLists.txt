@@ -16,6 +16,7 @@ add_executable(
   "src/lexer/tokenizer.c"
   "src/parser/parse.c"
   "src/parser/parser.c"
+  "src/parser/opinfo.c"
   "src/gen/generate.c"
   "src/gen/generator.c"
   "src/util/arena.c"

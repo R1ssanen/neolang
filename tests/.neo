@@ -1,3 +1,5 @@
 $ neolang testfile $
 
-exit 1 + 4 * 2 - 2;
+u32: num = 3 - (6 * 2);
+u8: ExitCode = 4 * (4 ^ 3) + 3 - (num + 3);
+exit ExitCode;

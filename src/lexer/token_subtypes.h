@@ -15,6 +15,7 @@ typedef enum TokenSubtype {
     _OP_SUB       = '-',
     _OP_MUL       = '*',
     _OP_DIV       = '/',
+    _OP_EXP       = '^',
     _OP_EQ        = '=',
     _OP_LSHIFT    = '<',
     _OP_RSHIFT    = '>',

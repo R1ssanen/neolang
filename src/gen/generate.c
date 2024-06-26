@@ -58,9 +58,9 @@ Error* GenerateTerm(const NodeTerm* Term) {
 }
 
 Error* GenerateBinExpr(const NodeBinExpr* BinExpr) {
-    Error* Err = GenerateExpr(BinExpr->LHS);
-    if (Err) { return Err; }
+    Error* Err = NULL;
 
+    if ((Err = GenerateExpr(BinExpr->LHS))) { return Err; }
     if ((Err = GenerateExpr(BinExpr->RHS))) { return Err; }
 
     PopStack("rbx"); // rhs in rbx
@@ -70,9 +70,29 @@ Error* GenerateBinExpr(const NodeBinExpr* BinExpr) {
     case _OP_ADD: TextEntry("\t\tadd rax, rbx\n"); break;
     case _OP_SUB: TextEntry("\t\tsub rax, rbx\n"); break;
     case _OP_MUL: TextEntry("\t\tmul rbx\n"); break;
+
     case _OP_DIV: {
         TextEntry("\t\txor rdx, rdx\n"); // zero rdx to avoid error
         TextEntry("\t\tdiv rbx\n");
+    } break;
+
+    case _OP_EXP: {
+        static u8 ExpCount = 0;
+        ++ExpCount;
+
+        // pow(rax, rbx)
+        // -------------
+        // while rbx > 0:
+        //  rbx--
+        //  rax = rax * rax
+
+        TextEntry("\t\tmov rcx, rax\n"); // save initial lhs value
+
+        TextEntry("\texp%d:\n", ExpCount);
+        TextEntry("\t\tdec rbx\n");
+        TextEntry("\t\tmul rcx\n");
+        TextEntry("\t\tcmp rbx, 1\n");
+        TextEntry("\t\tjne exp%d\n", ExpCount);
     } break;
 
     default: return ERROR(_SYNTAX_ERROR, "Invalid binary expression.");
@@ -116,7 +136,7 @@ Error* GenerateExit(const NodeStmtExit* Exit) {
     Error* Err = GenerateExpr(Exit->Expr);
     if (Err) { return Err; }
 
-    TextEntry("\t\tmov rax, 60\n");
+    TextEntry("\n\t\tmov rax, 60\n");
     PopStack("rdi");
     TextEntry("\t\tsyscall\n");
 

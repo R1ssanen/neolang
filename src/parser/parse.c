@@ -9,19 +9,20 @@
 #include "../util/arena.h"
 #include "../util/error.h"
 #include "node_types.h"
+#include "opinfo.h"
 #include "parser.h"
 
 Error* ParseTerm(NodeTerm* Term) {
     if (Peek(0) && Peek(0)->Type == _NUMLIT) {
-        Term->NumLit  = Alloc(NodeTermNumLit, 1);
-        *Term->NumLit = (NodeTermNumLit){ .Num = *Peek(0) };
-        Term->Holds   = _TERM_NUMLIT;
+        Term->NumLit      = Alloc(NodeTermNumLit, 1);
+        Term->Holds       = _TERM_NUMLIT;
+        Term->NumLit->Num = *Peek(0);
     }
 
     else if (Peek(0) && Peek(0)->Type == _ID) {
-        Term->Ident  = Alloc(NodeTermIdent, 1);
-        *Term->Ident = (NodeTermIdent){ .Id = *Peek(0) };
-        Term->Holds  = _TERM_IDENT;
+        Term->Ident     = Alloc(NodeTermIdent, 1);
+        Term->Holds     = _TERM_IDENT;
+        Term->Ident->Id = *Peek(0);
     }
 
     else {
@@ -34,57 +35,55 @@ Error* ParseTerm(NodeTerm* Term) {
     return NO_ERROR;
 }
 
-Error* ParseBinExpr(NodeBinExpr* BinExpr) {
-    Error* Err   = NULL;
-
-    BinExpr->LHS = Alloc(NodeExpr, 1);
-    if ((Err = ParseExpr(BinExpr->LHS))) { return Err; }
-
-    BinExpr->Op  = Consume()->Subtype; // op
-
-    BinExpr->RHS = Alloc(NodeExpr, 1);
-    if ((Err = ParseExpr(BinExpr->RHS))) { return Err; }
-
-    return NO_ERROR;
-}
-
-Error* ParseExpr(NodeExpr* Expr) {
+// TODO: move parsing of binary expression to own method
+Error* ParseExpr(NodeExpr* Expr, u8 MinPrec) {
     Error* Err = NULL;
 
-    // term
-    if (Peek(0) && (Peek(0)->Type == _NUMLIT || Peek(0)->Type == _ID)) {
-        Expr->Holds = _TERM;
-        Expr->Term  = Alloc(NodeTerm, 1);
+    // subexpression
+    if (Peek(0) && Peek(0)->Subtype == _SPEC_LPAREN) {
+        Consume(); // (
 
-        if ((Err = ParseTerm(Expr->Term))) { return Err; }
-
-        // binary expr
-        if (Peek(0) && Peek(0)->Type == _OP) {
-            Expr->Holds               = _BIN_EXPR;
-
-            // take a copy of term,
-            // otherwise expr->binexpr
-            // overwrites it.
-            NodeTerm* Term            = Expr->Term;
-
-            Expr->BinExpr             = Alloc(NodeBinExpr, 1);
-            Expr->BinExpr->Op         = Consume()->Subtype; // op
-
-            Expr->BinExpr->LHS        = Alloc(NodeExpr, 1);
-            Expr->BinExpr->LHS->Holds = _TERM;
-            Expr->BinExpr->LHS->Term  = Term;
-
-            Expr->BinExpr->RHS        = Alloc(NodeExpr, 1);
-            if ((Err = ParseExpr(Expr->BinExpr->RHS))) { return Err; }
+        if ((Err = ParseExpr(Expr, 0))) { return Err; }
+        if (!Peek(0) || Peek(0)->Subtype != _SPEC_RPAREN) {
+            return ERROR(_SYNTAX_ERROR, "Unmatched parentheses.");
         }
+
+        Consume(); // )
     }
 
     else {
-        Expr->Holds   = _BIN_EXPR;
-        Expr->BinExpr = Alloc(NodeBinExpr, 1);
+        Expr->Holds = _TERM;
+        Expr->Term  = Alloc(NodeTerm, 1); // initial lhs
 
-        // binary expression
-        if ((Err = ParseBinExpr(Expr->BinExpr))) { return Err; }
+        if ((Err = ParseTerm(Expr->Term))) { return Err; }
+    }
+
+    while (Peek(0)) {
+        // FIX: not every operator is a binary operator
+        if (Peek(0)->Type != _OP || OPINFOS[Peek(0)->Subtype].Prec < MinPrec) { break; }
+
+        Token* Token       = Consume(); // op
+        OpInfo Info        = OPINFOS[Token->Subtype];
+        u8     NextMinPrec = (Info.Assoc == _ASSOC_LEFT) ? Info.Prec + 1 : Info.Prec;
+
+        // operator after operator means
+        // the latter marks signedness
+        if (Peek(0) && Peek(0)->Subtype == _OP_SUB) {
+            Consume(); // -
+        }
+
+        NodeExpr* RHS = Alloc(NodeExpr, 1);
+        if ((Err = ParseExpr(RHS, NextMinPrec))) { return Err; }
+
+        NodeExpr* NewLHS     = Alloc(NodeExpr, 1);
+        NewLHS->Holds        = _BIN_EXPR;
+        NewLHS->BinExpr      = Alloc(NodeBinExpr, 1);
+        NewLHS->BinExpr->RHS = RHS;
+        NewLHS->BinExpr->Op  = Token->Subtype;
+
+        NewLHS->BinExpr->LHS = Alloc(NodeExpr, 1);
+        memcpy(NewLHS->BinExpr->LHS, Expr, sizeof(NodeExpr));
+        memcpy(Expr, NewLHS, sizeof(NodeExpr));
     }
 
     return NO_ERROR;
@@ -101,7 +100,7 @@ Error* ParseStmt(NodeStmt* Stmt) {
         Stmt->Exit    = Alloc(NodeStmtExit, 1);
         *(Stmt->Exit) = (NodeStmtExit){ .Expr = Alloc(NodeExpr, 1) };
 
-        if ((Err = ParseExpr(Stmt->Exit->Expr))) { return Err; }
+        if ((Err = ParseExpr(Stmt->Exit->Expr, 0))) { return Err; }
     }
 
     // print statement, expects [put][str_lit]
@@ -130,7 +129,7 @@ Error* ParseStmt(NodeStmt* Stmt) {
         Stmt->Asgn       = Alloc(NodeStmtAsgn, 1);
         Stmt->Asgn->Expr = Alloc(NodeExpr, 1);
 
-        if ((Err = ParseExpr(Stmt->Asgn->Expr))) { return Err; }
+        if ((Err = ParseExpr(Stmt->Asgn->Expr, 0))) { return Err; }
 
         Stmt->Asgn->Ident    = Alloc(NodeTermIdent, 1);
         *(Stmt->Asgn->Ident) = (NodeTermIdent){ .Id = Ident };
@@ -175,7 +174,7 @@ Error* ParseStmt(NodeStmt* Stmt) {
             Stmt->Def       = Alloc(NodeStmtDef, 1);
             Stmt->Def->Expr = Alloc(NodeExpr, 1);
 
-            if ((Err = ParseExpr(Stmt->Def->Expr))) { return Err; }
+            if ((Err = ParseExpr(Stmt->Def->Expr, 0))) { return Err; }
 
             Stmt->Def->Type  = Type;
             Stmt->Def->Ident = Alloc(NodeTermIdent, 1);

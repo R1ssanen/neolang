@@ -14,7 +14,7 @@
 
 Error* ParseTerm(NodeTerm* Term);
 Error* ParseBinExpr(NodeBinExpr* BinExpr);
-Error* ParseExpr(NodeExpr* Expr);
+Error* ParseExpr(NodeExpr* Expr, u8 MinPrec);
 Error* ParsePut(NodeStmtPut* Put);
 Error* ParseExit(NodeStmtExit* Exit);
 Error* ParseDef(NodeStmtDef* Def);

@@ -1,3 +1,3 @@
 #! bin/bash
 
-build/neolang tests/.neo
+build/neolang tests/.neo -fout-ast

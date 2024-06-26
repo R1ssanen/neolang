@@ -3,7 +3,7 @@
 #include <string.h>
 
 const char* SPECIAL_SYMBOLS = "[](){},:;.";
-const char* OPERATORS       = "+-*/=<>~#@";
+const char* OPERATORS       = "+-*/^=<>~#@";
 
 const char* KEYWORDS[]      = {
     "true", "false", "ret", "if", "elif", "else", "var", "exit", "put", NULL

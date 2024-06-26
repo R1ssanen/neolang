@@ -3,6 +3,7 @@
 #include <string.h>
 #include <time.h>
 
+#include "debug/ast_output.h"
 #include "gen/generate.h"
 #include "lexer/tokenize.h"
 #include "parser/node_types.h"
@@ -10,9 +11,6 @@
 #include "types.h"
 #include "util/arena.h"
 #include "util/error.h"
-
-// debug
-#include "debug/ast_output.h"
 
 i32 main(i32 argc, char** argv) {
     clock_t ClockStart = clock();
@@ -58,12 +56,12 @@ i32 main(i32 argc, char** argv) {
         return Err->Code;
     }
 
-    for (u64 i = 0; i < TokensLen; ++i) {
+    /*for (u64 i = 0; i < TokensLen; ++i) {
         printf(
             "\tType: %-10s Subtype: 0x%-10X Value: %-10s\n", GetTypeDebugName(Tokens[i].Type),
             Tokens[i].Subtype, (char*)Tokens[i].Value
         );
-    }
+    }*/
 
     const u64 MAX_NODE_STATEMENTS = 1000;
     NodeRoot* Tree                = Alloc(NodeRoot, 1);
