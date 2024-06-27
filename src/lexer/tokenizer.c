@@ -1,5 +1,6 @@
 #include "tokenizer.h"
 
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,8 +11,11 @@
 
 static Tokenizer* State = NULL;
 
-Error*            InitTokenizer(const char* Source, u64 SourceLen) {
-    if (!Source) { return ERROR(_INVALID_ARG, "Null source input."); }
+b8                InitTokenizer(const char* Source, u64 SourceLen) {
+    if (!Source) {
+        THROW_ERROR(_INVALID_ARG, "Null source input.");
+        return false;
+    }
 
     State                      = Alloc(Tokenizer, 1);
 
@@ -33,7 +37,10 @@ Error*            InitTokenizer(const char* Source, u64 SourceLen) {
         ++Result;
     }
 
-    if (WithinComment) { return ERROR(_SYNTAX_ERROR, "Unclosed comment block."); }
+    if (WithinComment) {
+        THROW_ERROR(_SYNTAX_ERROR, "Unclosed comment block.");
+        return false;
+    }
 
     // concatenate segment after last comment
     strncat(Buffer, Source + LastCommentEnd, SourceLen - LastCommentEnd);
@@ -45,6 +52,14 @@ Error*            InitTokenizer(const char* Source, u64 SourceLen) {
     State->BitesLen       = 0;
 
     for (char* Bite = strtok(Buffer, DELIM); Bite; Bite = strtok(NULL, DELIM)) {
+
+        b8 Empty = true;
+        for (u64 i = 0; i < strlen(Bite); ++i) {
+            if (!isspace(Bite[i])) { Empty = false; }
+        }
+
+        if (Empty) { continue; }
+
         State->Bites[State->BitesLen] = Alloc(char, strlen(Bite) + 1);
         strcpy(State->Bites[State->BitesLen], Bite);
 
@@ -55,7 +70,7 @@ Error*            InitTokenizer(const char* Source, u64 SourceLen) {
     State->BiteIndex = 0;
     State->CharIndex = 0;
 
-    return NO_ERROR;
+    return true;
 }
 
 char PeekChar(u64 Offset) {

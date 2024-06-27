@@ -44,7 +44,8 @@ typedef enum TokenSubtype {
     _KEY_ELSE     = 0x00002000,
     _KEY_VAR      = 0x00004000,
     _KEY_EXIT     = 0x00008000,
-    _KEY_PUT      = 0x00010000,
+    _KEY_FOR      = 0x00010000,
+    _KEY_CONT     = 0x00020000,
 
     // built-in types
     _BI_B8        = 0x00100000,

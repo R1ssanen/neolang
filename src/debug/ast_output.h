@@ -10,16 +10,19 @@
 #include "../parser/node_types.h"
 #include "../util/error.h"
 
-void   OutputTerm(const NodeTerm* Term);
-void   OutputBinExpr(const NodeBinExpr* BinExpr);
-void   OutputExpr(const NodeExpr* Expr);
-void   OutputPut(const NodeStmtPut* Put);
-void   OutputExit(const NodeStmtExit* Exit);
-void   OutputDef(const NodeStmtDef* Def);
-void   OutputDecl(const NodeStmtDecl* Decl);
-void   OutputAsgn(const NodeStmtAsgn* Asgn);
-void   OutputStmt(const NodeStmt* Stmt);
+void OutputInterval(const NodeInterval* Interval);
+void OutputScope(const NodeScope* Scope);
+void OutputFor(const NodeStmtFor* For);
+void OutputTerm(const NodeTerm* Term);
+void OutputBinExpr(const NodeBinExpr* BinExpr);
+void OutputExpr(const NodeExpr* Expr);
+void OutputExit(const NodeExit* Exit);
+void OutputDef(const NodeVarDef* Def);
+void OutputDecl(const NodeDecl* Decl);
+void OutputAsgn(const NodeStmtAsgn* Asgn);
+void OutputFor(const NodeStmtFor* For);
+void OutputStmt(const NodeStmt* Stmt);
 
-Error* OutputAST(const struct NodeRoot* Tree, const char* Filename);
+b8   OutputAST(const struct NodeRoot* Tree, const char* Filename);
 
 #endif

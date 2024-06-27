@@ -6,6 +6,20 @@
 
 #include "arena.h"
 
+#define MAX_ERRORS 100
+Error** ErrorStack;
+u64     ErrorsCount;
+
+void    InitErrors(void) {
+    ErrorStack  = Alloc(Error*, MAX_ERRORS);
+    ErrorsCount = 0;
+}
+
+void PrintErrorStack(void) {
+    fputs("\nError stack:\n", stderr);
+    for (u64 i = 0; i < ErrorsCount; ++i) { fprintf(stderr, "  %s\n", ErrorStack[i]->Msg); }
+}
+
 Error* _MakeError(ErrCode Code, const char* Type, const char* File, const char* Fmt, ...) {
     Error* Err = Alloc(Error, 1);
     Err->Code  = Code;

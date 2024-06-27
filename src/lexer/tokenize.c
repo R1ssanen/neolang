@@ -12,19 +12,27 @@
 #include "token_types.h"
 #include "tokenizer.h"
 
-Error* Tokenize(const char* Source, u64 SourceLen, Token* Tokens, u64* TokensLen) {
-    if (!Source) { return ERROR(_INVALID_ARG, "No source string to tokenize."); }
-    if (!Tokens || !TokensLen) { return ERROR(_INVALID_ARG, "Null output paratemers."); }
+b8 Tokenize(const char* Source, u64 SourceLen, Token* Tokens, u64* TokensLen) {
+    if (!Source) {
+        THROW_ERROR(_INVALID_ARG, "No source string to tokenize.");
+        return false;
+    }
+    if (!Tokens || !TokensLen) {
+        THROW_ERROR(_INVALID_ARG, "Null output paratemers.");
+        return false;
+    }
 
-    Error* Err = InitTokenizer(Source, SourceLen);
-    if (Err) { return Err; }
+    if (!InitTokenizer(Source, SourceLen)) { return false; }
 
     while (PeekBite(0)) {
 
         while (PeekChar(0)) {
 
             // skip whitespace
-            if (isspace(PeekChar(0))) { ConsumeChar(); }
+            if (isspace(PeekChar(0))) {
+                ConsumeChar();
+                continue;
+            }
 
             // special character
             if (strchr(SPECIAL_SYMBOLS, PeekChar(0))) {
@@ -57,16 +65,18 @@ Error* Tokenize(const char* Source, u64 SourceLen, Token* Tokens, u64* TokensLen
 
                 b8        IsFloat = false;
 
-                while (PeekChar(0) && (isdigit(PeekChar(0)) || (PeekChar(0) == '.'))) {
-                    if (PeekChar(0) == '.') {
-                        if (IsFloat) {
-                            return ERROR(
-                                _SYNTAX_ERROR, "Float literal with multiple decimal points."
-                            );
-                        }
+                // while (PeekChar(0) && (isdigit(PeekChar(0)) || (PeekChar(0) == '.'))) {
+                while (PeekChar(0) && isdigit(PeekChar(0))) {
+                    /*if (PeekChar(0) == '.') {
+                            if (IsFloat) {
+                                THROW_ERROR(
+                                    _SYNTAX_ERROR, "Float literal with multiple decimal points."
+                                );
+                                return false;
+                            }
 
-                        IsFloat = true;
-                    }
+                            IsFloat = true;
+                        }*/
 
                     NumLit[NumLen++] = PeekChar(0);
                     ConsumeChar();
@@ -138,12 +148,13 @@ Error* Tokenize(const char* Source, u64 SourceLen, Token* Tokens, u64* TokensLen
             }
 
             else {
-                return ERROR(_SYNTAX_ERROR, "Invalid token in '%s'.", PeekBite(0));
+                THROW_ERROR(_SYNTAX_ERROR, "Invalid token in '%s'.", PeekBite(0));
+                return false;
             }
         }
 
         ConsumeBite();
     }
 
-    return NO_ERROR;
+    return true;
 }

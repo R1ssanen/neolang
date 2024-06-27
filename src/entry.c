@@ -15,6 +15,7 @@
 i32 main(i32 argc, char** argv) {
     clock_t ClockStart = clock();
     InitMemArena(1024 * 1024 * 10);
+    InitErrors();
 
     if (argc <= 1) {
         PRINT_ERROR(_INVALID_ARG, "No source file provided.");
@@ -50,44 +51,40 @@ i32 main(i32 argc, char** argv) {
     Token*    Tokens     = Alloc(Token, MAX_TOKENS);
     u64       TokensLen  = 0;
 
-    Error*    Err        = NULL;
-    if ((Err = Tokenize((const char*)Source, FileLen, Tokens, &TokensLen))) {
-        fputs(Err->Msg, stderr);
-        return Err->Code;
+    if (!Tokenize((const char*)Source, FileLen, Tokens, &TokensLen)) {
+        PrintErrorStack();
+        return EXIT_FAILURE;
     }
 
-    /*for (u64 i = 0; i < TokensLen; ++i) {
+    for (u64 i = 0; i < TokensLen; ++i) {
         printf(
             "\tType: %-10s Subtype: 0x%-10X Value: %-10s\n", GetTypeDebugName(Tokens[i].Type),
             Tokens[i].Subtype, (char*)Tokens[i].Value
         );
-    }*/
+    }
 
-    const u64 MAX_NODE_STATEMENTS = 1000;
-    NodeRoot* Tree                = Alloc(NodeRoot, 1);
-    *Tree = (NodeRoot){ .Stats = Alloc(NodeStmt*, MAX_NODE_STATEMENTS), .StatsLen = 0 };
-
-    if ((Err = Parse(Tokens, TokensLen, Tree))) {
-        fputs(Err->Msg, stderr);
-        return Err->Code;
+    NodeRoot* Tree = Parse(Tokens, TokensLen);
+    if (!Tree) {
+        PrintErrorStack();
+        return EXIT_FAILURE;
     }
 
     // option to output syntax tree to json
     if (argc >= 3 && strcmp(argv[2], "-fout-ast") == 0) {
         const char* JsonPath = "bin/ast.json";
 
-        if ((Err = OutputAST(Tree, JsonPath))) {
-            fputs(Err->Msg, stderr);
-            return Err->Code;
+        if (!OutputAST(Tree, JsonPath)) {
+            PrintErrorStack();
+            return EXIT_FAILURE;
         }
     }
 
     const u64 MAX_ASM_LENGTH = 1010000;
     char*     AsmSource      = Alloc(char, MAX_ASM_LENGTH);
 
-    if ((Err = Generate(Tree, AsmSource))) {
-        fputs(Err->Msg, stderr);
-        return Err->Code;
+    if (!Generate(Tree, AsmSource)) {
+        PrintErrorStack();
+        return EXIT_FAILURE;
     }
 
     const char* AsmPath = "bin/out.asm"; // argv[2];

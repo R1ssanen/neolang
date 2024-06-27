@@ -10,8 +10,11 @@
 
 Generator* State = NULL;
 
-Error*     InitGenerator(const NodeRoot* Tree) {
-    if (!Tree) { return ERROR(_INVALID_ARG, "Null root node input."); }
+b8         InitGenerator(const NodeRoot* Tree) {
+    if (!Tree) {
+        THROW_ERROR(_INVALID_ARG, "Null root node input.");
+        return false;
+    }
 
     State                      = Alloc(Generator, 1);
 
@@ -31,7 +34,11 @@ Error*     InitGenerator(const NodeRoot* Tree) {
     State->VarCount               = 0;
     State->StackPtr               = 0;
 
-    return NO_ERROR;
+    const u64 MAX_SCOPES          = 100;
+    State->ScopeRegistry          = Alloc(u64, MAX_SCOPES);
+    State->ScopeCount             = 0;
+
+    return true;
 }
 
 void PushStack(const char* Register) {
@@ -59,4 +66,20 @@ Variable* FindVar(const struct NodeTermIdent* Ident) {
     }
 
     return NULL;
+}
+
+void BeginScope() { State->ScopeRegistry[State->ScopeCount++] = State->VarCount; }
+
+void EndScope() {
+    u64 ScopeVarCount = State->VarCount - State->ScopeRegistry[State->ScopeCount - 1];
+
+    TextEntry("\t\tadd rsp, %lu\n", ScopeVarCount * 8);
+
+    for (u64 i = (State->VarCount - ScopeVarCount); i < State->VarCount; ++i) {
+        // zero out variable memory
+        memset(State->VarRegistry + i, 0, sizeof(Variable));
+    }
+
+    State->VarCount -= ScopeVarCount;
+    State->ScopeRegistry[--State->ScopeCount - 1] = 0;
 }

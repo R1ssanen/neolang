@@ -4,12 +4,15 @@
 - [x] stack variables
 - [x] assignment, declaration & definition
 - [x] ast json output
-- [x] literal printing
-- [ ] binary expressions
-  - [x] simple expressions
-  - [ ] order of operations
-  - [ ] float math
-- [ ] scopes
+- [ ] literal printing
+- [x] binary expressions
+  - [x] parentheses
+  - [x] order of operations
+  - [ ] negative numbers, negation
+- [x] scopes
+- [ ] if, elif, else, for, while
 - [ ] functions & entry point
+- [ ] float math
+- [ ] boolean math
 - [ ] types & sizes
 - [ ] arrays & pointers

@@ -2,12 +2,11 @@
 
 #include <string.h>
 
-const char* SPECIAL_SYMBOLS = "[](){},:;.";
-const char* OPERATORS       = "+-*/^=<>~#@";
+const char*        SPECIAL_SYMBOLS    = "[](){},:;.";
+const char*        OPERATORS          = "+-*/^=<>~#@";
 
-const char* KEYWORDS[]      = {
-    "true", "false", "ret", "if", "elif", "else", "var", "exit", "put", NULL
-};
+const char*        KEYWORDS[]         = { "true", "false", "ret",  "if",   "elif", "else",
+                                          "for",  "var",   "exit", "cont", NULL };
 
 const char*        BITYPES[]          = { "b8",  "i8",  "i16", "i32", "i64", "u8",
                                           "u16", "u32", "u64", "f32", "f64", NULL };

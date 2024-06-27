@@ -16,7 +16,7 @@ static const u8    BYTESIZE[] = {
     [_BI_U32] = 4, [_BI_F32] = 4, [_BI_I64] = 8, [_BI_U64] = 8, [_BI_F64] = 8
 };
 
-Error* GenerateTerm(const NodeTerm* Term) {
+b8 GenTerm(const NodeTerm* Term) {
 
     if (Term->Holds == _TERM_NUMLIT) {
         if (Term->NumLit->Num.Subtype == _NUMLIT_INT) {
@@ -46,22 +46,47 @@ Error* GenerateTerm(const NodeTerm* Term) {
         }
 
         char VarValue[100];
-        sprintf(VarValue, "QWORD [rsp + %i]", (i32)(((State->StackPtr - Var->StackIndex) * 8) - 8));
+        sprintf(VarValue, "QWORD [rsp + %lu]", (State->StackPtr - Var->StackIndex - 1) * 8);
         PushStack(VarValue);
     }
 
     else {
-        return ERROR(_SYNTAX_ERROR, "Invalid term.");
+        THROW_ERROR(_SYNTAX_ERROR, "Invalid term.");
+        return false;
     }
 
-    return NO_ERROR;
+    return true;
 }
 
-Error* GenerateBinExpr(const NodeBinExpr* BinExpr) {
-    Error* Err = NULL;
+b8 GenFor(const NodeStmtFor* For) {
+    static u64 ForID = 0;
+    ++ForID;
 
-    if ((Err = GenerateExpr(BinExpr->LHS))) { return Err; }
-    if ((Err = GenerateExpr(BinExpr->RHS))) { return Err; }
+    if (!GenExpr(For->Interval->Beg)) { return false; }
+    if (!GenExpr(For->Interval->End)) { return false; }
+
+    PopStack("rbx"); // end
+    PopStack("rax"); // beg
+
+    if (!GenVarDef(For->Def)) { return false; }
+    PopStack("rcx"); // iterator
+
+    TextEntry("\t\tmov rcx, rax\n"); // iterator
+    TextEntry("\tfor%lu:\n", ForID);
+
+    if (!GenScope(For->Scope)) { return false; }
+
+    TextEntry("\t\tinc rcx\n");
+    TextEntry("\t\tcmp rcx, rbx\n");
+    TextEntry("\t\tjle for%lu\n", ForID);
+
+    return true;
+}
+
+b8 GenBinExpr(const NodeBinExpr* BinExpr) {
+
+    if (!GenExpr(BinExpr->LHS)) { return false; }
+    if (!GenExpr(BinExpr->RHS)) { return false; }
 
     PopStack("rbx"); // rhs in rbx
     PopStack("rax"); // lhs in rax
@@ -95,115 +120,106 @@ Error* GenerateBinExpr(const NodeBinExpr* BinExpr) {
         TextEntry("\t\tjne exp%d\n", ExpCount);
     } break;
 
-    default: return ERROR(_SYNTAX_ERROR, "Invalid binary expression.");
+    default: {
+        THROW_ERROR(_SYNTAX_ERROR, "Invalid binary expression.");
+        return false;
+    } break;
     }
 
     PushStack("rax");
-    return NO_ERROR;
+    return true;
 }
 
-Error* GenerateExpr(const NodeExpr* Expr) {
-    Error* Err = NULL;
+b8 GenExpr(const NodeExpr* Expr) {
 
     if (Expr->Holds == _TERM) {
-        if ((Err = GenerateTerm(Expr->Term))) { return Err; }
+        if (!GenTerm(Expr->Term)) { return false; }
     }
 
     else if (Expr->Holds == _BIN_EXPR) {
-        if ((Err = GenerateBinExpr(Expr->BinExpr))) { return Err; }
+        if (!GenBinExpr(Expr->BinExpr)) { return false; }
     }
 
-    return NO_ERROR;
+    return true;
 }
 
-Error* GeneratePut(const NodeStmtPut* Put) {
-    static u8 NumStrLits = 0;
-    DataEntry("\t\tstr%d db \"%s\", 10\n", NumStrLits, Put->Str);
-    DataEntry("\t\tlstr%d equ $-str%d\n", NumStrLits, NumStrLits);
+b8 GenScope(const NodeScope* Scope) {
+    BeginScope();
 
-    TextEntry("\t\tmov rax, 1\n");
-    TextEntry("\t\tmov rdi, 1\n");
-    TextEntry("\t\tmov rsi, str%d\n", NumStrLits);
-    TextEntry("\t\tmov rdx, lstr%d\n", NumStrLits);
-    TextEntry("\t\tsyscall\n");
+    for (u64 i = 0; i < Scope->StatsLen; ++i) {
+        if (!GenStmt(Scope->Stats[i])) { return false; }
+    }
 
-    ++NumStrLits;
+    return true;
 
-    return NO_ERROR;
+    EndScope();
 }
 
-Error* GenerateExit(const NodeStmtExit* Exit) {
-    Error* Err = GenerateExpr(Exit->Expr);
-    if (Err) { return Err; }
+b8 GenExit(const NodeExit* Exit) {
+    if (!GenExpr(Exit->Expr)) { return false; }
 
     TextEntry("\n\t\tmov rax, 60\n");
     PopStack("rdi");
     TextEntry("\t\tsyscall\n");
 
-    return NO_ERROR;
+    return true;
 }
 
-Error* GenerateDef(const NodeStmtDef* Def) {
+b8 GenVarDef(const NodeVarDef* Def) {
     Variable* Var = FindVar(Def->Ident);
 
     if (Var) {
-        return ERROR(
+        THROW_ERROR(
             _SEMANTIC_ERROR, "Variable '%s' already taken at stack position %lu.",
             (char*)Def->Ident->Id.Value, Var->StackIndex
         );
+        return false;
     }
 
     // new variable
     RegisterVar(Def->Ident, BYTESIZE[Def->Type]);
-
-    Error* Err = GenerateExpr(Def->Expr);
-    if (Err) { return Err; }
-
-    return NO_ERROR;
+    if (!GenExpr(Def->Expr)) { return false; }
+    return true;
 }
 
-Error* GenerateDecl(const NodeStmtDecl* Decl) {
+b8 GenDecl(const NodeDecl* Decl) {
     Variable* Var = FindVar(Decl->Ident);
 
     if (Var) {
-        return ERROR(
+        THROW_ERROR(
             _SEMANTIC_ERROR, "Variable '%s' already taken at stack position %lu.",
             (char*)Decl->Ident->Id.Value, Var->StackIndex
         );
+        return false;
     }
 
     // new variable
     RegisterVar(Decl->Ident, BYTESIZE[Decl->Type]);
 
-    return NO_ERROR;
+    return true;
 }
 
-Error* GenerateAsgn(const NodeStmtAsgn* Asgn) {
+b8 GenAsgn(const NodeStmtAsgn* Asgn) {
     Variable* Var = FindVar(Asgn->Ident);
 
     if (!Var) {
-        return ERROR(_SEMANTIC_ERROR, "Variable '%s' doesn't exist.", (char*)Var->Ident->Id.Value);
+        THROW_ERROR(_SEMANTIC_ERROR, "Variable '%s' doesn't exist.", (char*)Var->Ident->Id.Value);
+        return false;
     }
 
     if (!Var->Ident->IsMutable) {
-        return ERROR(
+        THROW_ERROR(
             _SEMANTIC_ERROR, "Trying to modify constant variable '%s'.",
             (char*)Asgn->Ident->Id.Value
         );
+        return false;
     }
 
-    Error* Err = GenerateExpr(Asgn->Expr);
-    if (Err) { return Err; }
+    if (!GenExpr(Asgn->Expr)) { return false; }
 
     if (Var->Ident->IsInit) {
         PopStack("rax");
-
-        // move expression value
-        // from rax to variable
-        // stack location.
-        TextEntry(
-            "\t\tmov [rsp + %i], rax\n", (i32)(((State->StackPtr - Var->StackIndex) * 8) - 8)
-        );
+        TextEntry("\t\tmov [rsp + %lu], rax\n", (State->StackPtr - Var->StackIndex - 1) * 8);
     }
 
     else {
@@ -211,61 +227,64 @@ Error* GenerateAsgn(const NodeStmtAsgn* Asgn) {
         Var->StackIndex    = State->StackPtr++;
     }
 
-    return NO_ERROR;
+    return true;
 }
 
-Error* GenerateStmt(const NodeStmt* Stmt) {
-    Error* Err = NULL;
+b8 GenStmt(const NodeStmt* Stmt) {
 
     switch (Stmt->Holds) {
 
-    case _STMT_EXIT: {
-        if ((Err = GenerateExit(Stmt->Exit))) { return Err; }
-    } break;
-    case _STMT_PUT: {
-        if ((Err = GeneratePut(Stmt->Put))) { return Err; }
+    case _EXIT: {
+        if (!GenExit(Stmt->Exit)) { return false; }
     } break;
     case _STMT_ASGN: {
-        if ((Err = GenerateAsgn(Stmt->Asgn))) { return Err; }
+        if (!GenAsgn(Stmt->Asgn)) { return false; }
     } break;
-    case _STMT_DECL: {
-        if ((Err = GenerateDecl(Stmt->Decl))) { return Err; }
+    case _DECL: {
+        if (!GenDecl(Stmt->Decl)) { return false; }
     } break;
-    case _STMT_DEF: {
-        if ((Err = GenerateDef(Stmt->Def))) { return Err; }
+    case _VAR_DEF: {
+        if (!GenVarDef(Stmt->VarDef)) { return false; }
+    } break;
+    case _SCOPE: {
+        if (!GenScope(Stmt->Scope)) { return false; }
+    } break;
+    case _STMT_FOR: {
+        if (!GenFor(Stmt->For)) { return false; }
     } break;
 
-    default: return ERROR(_SYNTAX_ERROR, "Invalid statement.");
+    default: THROW_ERROR(_SYNTAX_ERROR, "Invalid statement."); return false;
     }
 
-    return NO_ERROR;
+    return true;
 }
 
-Error* GenerateRoot(const NodeRoot* Tree) {
-    Error* Err = NULL;
+b8 GenRoot(const NodeRoot* Tree) {
 
     for (u64 i = 0; i < Tree->StatsLen; ++i) {
         NodeStmt* Stmt = Tree->Stats[i];
 
-        if ((Err = GenerateStmt(Stmt))) { return Err; }
+        if (!GenStmt(Stmt)) { return false; }
     }
 
-    return NO_ERROR;
+    return true;
 }
 
-Error* Generate(const NodeRoot* Tree, char* AsmSource) {
-    if (!Tree) { return ERROR(_INVALID_ARG, "Null input AST."); }
-    if (!AsmSource) { return ERROR(_INVALID_ARG, "Null output source string."); }
+b8 Generate(const NodeRoot* Tree, char* AsmSource) {
+    if (!Tree) {
+        THROW_ERROR(_INVALID_ARG, "Null input AST.");
+        return false;
+    }
+    if (!AsmSource) {
+        THROW_ERROR(_INVALID_ARG, "Null output source string.");
+        return false;
+    }
 
-    Error* Err = InitGenerator(Tree);
-    if (Err) { return Err; }
-
-    if ((Err = GenerateRoot(Tree))) { return Err; }
+    if (!InitGenerator(Tree)) { return false; }
+    if (!GenRoot(Tree)) { return false; }
 
     strcat(AsmSource, State->DATA);
     strcat(AsmSource, State->TEXT);
-    // sprintf(AsmSource, "%s\n\n", State->DATA);
-    // sprintf(AsmSource, "%s", State->TEXT);
 
-    return NO_ERROR;
+    return true;
 }

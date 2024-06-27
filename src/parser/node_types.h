@@ -20,26 +20,36 @@ typedef enum NodeType {
     _EXPR         = 0x00000100,
     _BIN_EXPR     = 0x00000200,
 
-    _STMT         = 0x00001000,
-    _STMT_EXIT    = 0x00002000,
-    _STMT_PUT     = 0x00004000,
-    _STMT_DECL    = 0x00008000,
-    _STMT_ASGN    = 0x00010000,
-    _STMT_DEF     = 0x00020000
+    _EXIT         = 0x00002000,
+    _DECL         = 0x00004000,
+    _VAR_DEF      = 0x00008000,
+    _SCOPE        = 0x00010000,
+    _INTERVAL     = 0x00020000,
+
+    _STMT         = 0x00100000,
+    _STMT_ASGN    = 0x00200000,
+    _STMT_FOR     = 0x00400000
 } NodeType;
 
 struct NodeTermNumLit;
 struct NodeTermIdent;
 struct NodeTerm;
 
+struct NodeRoot;
 struct NodeBinExpr;
 struct NodeExpr;
+struct NodeExit;
+struct NodeDecl;
+struct NodeVarDef;
+struct NodeScope;
+struct NodeInterval;
 
-struct NodeStmtExit;
-struct NodeStmtPut;
-struct NodeStmtDecl;
+// struct NodeFunDecl;
+// struct NodeFunDef;
+
 struct NodeStmtAsgn;
-struct NodeStmtDef;
+struct NodeStmtFor;
+struct NodeStmt;
 
 typedef struct NodeTermNumLit {
     Token Num;
@@ -75,37 +85,51 @@ typedef struct NodeExpr {
     NodeType Holds;
 } NodeExpr;
 
-typedef struct NodeStmtExit {
+typedef struct NodeExit {
     NodeExpr* Expr;
-} NodeStmtExit;
+} NodeExit;
 
-typedef struct NodeStmtPut {
-    char* Str;
-} NodeStmtPut;
-
-typedef struct NodeStmtDecl {
+typedef struct NodeDecl {
     NodeTermIdent* Ident;
     TokenSubtype   Type;
-} NodeStmtDecl;
+} NodeDecl;
+
+typedef struct NodeVarDef {
+    NodeTermIdent* Ident;
+    NodeExpr*      Expr;
+    TokenSubtype   Type;
+} NodeVarDef;
+
+typedef struct NodeScope {
+    struct NodeStmt** Stats;
+    u64               StatsLen;
+} NodeScope;
+
+typedef struct NodeInterval {
+    NodeExpr* Beg;
+    NodeExpr* End;
+} NodeInterval;
 
 typedef struct NodeStmtAsgn {
     NodeTermIdent* Ident;
     NodeExpr*      Expr;
 } NodeStmtAsgn;
 
-typedef struct NodeStmtDef {
-    NodeTermIdent* Ident;
-    NodeExpr*      Expr;
-    TokenSubtype   Type;
-} NodeStmtDef;
+typedef struct NodeStmtFor {
+    NodeVarDef*   Def;
+    NodeScope*    Scope;
+    NodeInterval* Interval;
+    TokenSubtype  Type;
+} NodeStmtFor;
 
 typedef struct NodeStmt {
     union {
-        NodeStmtExit* Exit;
-        NodeStmtPut*  Put;
-        NodeStmtDecl* Decl;
+        NodeExit*     Exit;
+        NodeDecl*     Decl;
+        NodeVarDef*   VarDef;
         NodeStmtAsgn* Asgn;
-        NodeStmtDef*  Def;
+        NodeScope*    Scope;
+        NodeStmtFor*  For;
     };
 
     NodeType Holds;

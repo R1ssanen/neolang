@@ -8,19 +8,19 @@
 #define GENERATE_H
 
 #include "../parser/node_types.h"
-#include "../util/error.h"
 
-Error* GenerateTerm(const NodeTerm* Term);
-Error* GenerateBinExpr(const NodeBinExpr* BinExpr);
-Error* GenerateExpr(const NodeExpr* Expr);
-Error* GeneratePut(const NodeStmtPut* Put);
-Error* GenerateExit(const NodeStmtExit* Exit);
-Error* GenerateDef(const NodeStmtDef* Def);
-Error* GenerateDecl(const NodeStmtDecl* Decl);
-Error* GenerateAsgn(const NodeStmtAsgn* Asgn);
-Error* GenerateStmt(const NodeStmt* Stmt);
-Error* GenerateRoot(const NodeRoot* Tree);
+b8 GenFor(const NodeStmtFor* For);
+b8 GenTerm(const NodeTerm* Term);
+b8 GenBinExpr(const NodeBinExpr* BinExpr);
+b8 GenExpr(const NodeExpr* Expr);
+b8 GenExit(const NodeExit* Exit);
+b8 GenVarDef(const NodeVarDef* Def);
+b8 GenDecl(const NodeDecl* Decl);
+b8 GenAsgn(const NodeStmtAsgn* Asgn);
+b8 GenScope(const NodeScope* Scope);
+b8 GenStmt(const NodeStmt* Stmt);
+b8 GenRoot(const NodeRoot* Tree);
 
-Error* Generate(const NodeRoot* Tree, char* AsmSource);
+b8 Generate(const NodeRoot* Tree, char* AsmSource);
 
 #endif

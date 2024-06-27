@@ -8,16 +8,17 @@ $ Entry point.
   of 8-bit characters. Returns integer
   exit code. $
 
-main(i32: argc, i8[][]: argv) -> i32:
+u8: main(i32: argc, i8[][]: argv) {
 
 	$ 'ret', 'cont', 'break' and 'exit'
       close a scope. A scope must
   	  use one of these calls to
   	  mark its end. $
 
-	if true:
+	if true {
 		ret 10;
-
+    }
+        
 	$ Static type system. $	
 	i64: _var = 7;
 	
@@ -34,7 +35,14 @@ main(i32: argc, i8[][]: argv) -> i32:
 
     $ Exit keyword calls system exit
       with integer literal exit code. $
-    if var: exit !var;
+    if _var { exit !_var; }
+
+    $ For-loop can iterate an
+      interval construct, made
+      with syntax 'begin..end' $
+    for u8: i; 0..13 {
+        put i;
+    }
 
     ret var;
-
+}

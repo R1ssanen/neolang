@@ -31,11 +31,14 @@ typedef struct Generator {
     Variable* VarRegistry;
     u64       VarCount;
     u64       StackPtr;
+
+    u64*      ScopeRegistry;
+    u64       ScopeCount;
 } Generator;
 
 extern Generator* State;
 
-Error*            InitGenerator(const struct NodeRoot* Tree);
+b8                InitGenerator(const struct NodeRoot* Tree);
 
 #define DataEntry(...)                                                                             \
     {                                                                                              \
@@ -56,5 +59,8 @@ void      PopStack(const char* Register);
 
 void      RegisterVar(const struct NodeTermIdent* Ident, u8 ByteSize);
 Variable* FindVar(const struct NodeTermIdent* Ident);
+
+void      BeginScope();
+void      EndScope();
 
 #endif

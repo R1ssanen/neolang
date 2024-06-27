@@ -12,222 +12,368 @@
 #include "opinfo.h"
 #include "parser.h"
 
-Error* ParseTerm(NodeTerm* Term) {
-    if (Peek(0) && Peek(0)->Type == _NUMLIT) {
-        Term->NumLit      = Alloc(NodeTermNumLit, 1);
-        Term->Holds       = _TERM_NUMLIT;
-        Term->NumLit->Num = *Peek(0);
-    }
+NodeTermNumLit* TryParseNumLit() {
+    Token* Num = TryConsumeType(_NUMLIT);
+    if (!Num) { return NULL; }
 
-    else if (Peek(0) && Peek(0)->Type == _ID) {
-        Term->Ident     = Alloc(NodeTermIdent, 1);
-        Term->Holds     = _TERM_IDENT;
-        Term->Ident->Id = *Peek(0);
-    }
+    NodeTermNumLit* NumLit = Alloc(NodeTermNumLit, 1);
+    NumLit->Num            = *Num;
 
-    else {
-        return ERROR(
-            _SYNTAX_ERROR, "Invalid term; got '%s'.", Peek(0) ? (char*)Peek(0)->Value : "null"
-        );
-    }
-
-    Consume(); // term
-    return NO_ERROR;
+    return NumLit;
 }
 
-// TODO: move parsing of binary expression to own method
-Error* ParseExpr(NodeExpr* Expr, u8 MinPrec) {
-    Error* Err = NULL;
+NodeTermIdent* TryParseIdent() {
+    Token* Id = TryConsumeType(_ID);
+    if (!Id) { return NULL; }
 
-    // subexpression
-    if (Peek(0) && Peek(0)->Subtype == _SPEC_LPAREN) {
-        Consume(); // (
+    NodeTermIdent* Ident = Alloc(NodeTermIdent, 1);
+    Ident->Id            = *Id;
 
-        if ((Err = ParseExpr(Expr, 0))) { return Err; }
-        if (!Peek(0) || Peek(0)->Subtype != _SPEC_RPAREN) {
-            return ERROR(_SYNTAX_ERROR, "Unmatched parentheses.");
-        }
+    return Ident;
+}
 
-        Consume(); // )
+NodeTerm* TryParseTerm() {
+    NodeTermNumLit* NumLit = TryParseNumLit();
+    if (NumLit) {
+        NodeTerm* Term = Alloc(NodeTerm, 1);
+        Term->Holds    = _TERM_NUMLIT;
+        Term->NumLit   = NumLit;
+        return Term;
+    }
+
+    NodeTermIdent* Ident = TryParseIdent();
+    if (Ident) {
+        NodeTerm* Term = Alloc(NodeTerm, 1);
+        Term->Holds    = _TERM_IDENT;
+        Term->Ident    = Ident;
+        return Term;
     }
 
     else {
-        Expr->Holds = _TERM;
-        Expr->Term  = Alloc(NodeTerm, 1); // initial lhs
+        return NULL;
+    }
+}
 
-        if ((Err = ParseTerm(Expr->Term))) { return Err; }
+NodeExpr* TryParseExpr(u8 MinPrec) {
+    NodeExpr* LHS = NULL;
+
+    // subexpr
+    if (TryConsumeSub(_SPEC_LPAREN)) {
+        if (!(LHS = TryParseExpr(0))) {
+            THROW_ERROR(_SYNTAX_ERROR, "Could not parse subexpression.");
+            return NULL;
+        }
+
+        if (!TryConsumeSub(_SPEC_RPAREN)) {
+            THROW_ERROR(_SYNTAX_ERROR, "Unmatched parentheses.");
+            return NULL;
+        }
+    }
+
+    else {
+        LHS        = Alloc(NodeExpr, 1);
+        LHS->Holds = _TERM;
+        LHS->Term  = TryParseTerm();
+        if (!LHS->Term) {
+            THROW_ERROR(_SYNTAX_ERROR, "Could not parse term for expression.");
+            return NULL;
+        }
     }
 
     while (Peek(0)) {
-        // FIX: not every operator is a binary operator
+        //  FIX: not every operator is a binary operator
         if (Peek(0)->Type != _OP || OPINFOS[Peek(0)->Subtype].Prec < MinPrec) { break; }
 
-        Token* Token       = Consume(); // op
-        OpInfo Info        = OPINFOS[Token->Subtype];
-        u8     NextMinPrec = (Info.Assoc == _ASSOC_LEFT) ? Info.Prec + 1 : Info.Prec;
+        Token*    Op          = Consume();
+        OpInfo    Info        = OPINFOS[Op->Subtype];
+        u8        NextMinPrec = (Info.Assoc == _ASSOC_LEFT) ? Info.Prec + 1 : Info.Prec;
 
-        // operator after operator means
-        // the latter marks signedness
-        if (Peek(0) && Peek(0)->Subtype == _OP_SUB) {
-            Consume(); // -
+        NodeExpr* RHS         = TryParseExpr(NextMinPrec);
+        if (!RHS) {
+            THROW_ERROR(_SYNTAX_ERROR, "Could not parse bin_expr.");
+            return NULL;
         }
-
-        NodeExpr* RHS = Alloc(NodeExpr, 1);
-        if ((Err = ParseExpr(RHS, NextMinPrec))) { return Err; }
 
         NodeExpr* NewLHS     = Alloc(NodeExpr, 1);
         NewLHS->Holds        = _BIN_EXPR;
         NewLHS->BinExpr      = Alloc(NodeBinExpr, 1);
         NewLHS->BinExpr->RHS = RHS;
-        NewLHS->BinExpr->Op  = Token->Subtype;
+        NewLHS->BinExpr->Op  = Op->Subtype;
 
         NewLHS->BinExpr->LHS = Alloc(NodeExpr, 1);
-        memcpy(NewLHS->BinExpr->LHS, Expr, sizeof(NodeExpr));
-        memcpy(Expr, NewLHS, sizeof(NodeExpr));
+        memcpy(NewLHS->BinExpr->LHS, LHS, sizeof(NodeExpr));
+        memcpy(LHS, NewLHS, sizeof(NodeExpr));
     }
 
-    return NO_ERROR;
+    return LHS;
 }
 
-Error* ParseStmt(NodeStmt* Stmt) {
-    Error* Err = NULL;
+NodeInterval* TryParseInterval() {
+    if (!TryConsumeSub(_SPEC_LBRACK)) { return NULL; }
 
-    // exit statement, expects [exit]
-    if (Peek(0) && Peek(0)->Subtype == _KEY_EXIT) {
-        Consume(); // exit
+    NodeExpr* Beg = NULL;
+    if (!(Beg = TryParseExpr(0))) { return NULL; }
 
-        Stmt->Holds   = _STMT_EXIT;
-        Stmt->Exit    = Alloc(NodeStmtExit, 1);
-        *(Stmt->Exit) = (NodeStmtExit){ .Expr = Alloc(NodeExpr, 1) };
+    if (!TryConsumeSub(_SPEC_PERIOD)) { return NULL; }
+    if (!TryConsumeSub(_SPEC_PERIOD)) { return NULL; }
 
-        if ((Err = ParseExpr(Stmt->Exit->Expr, 0))) { return Err; }
+    NodeExpr* End = NULL;
+    if (!(End = TryParseExpr(0))) {
+        THROW_ERROR(_SYNTAX_ERROR, "Could not parse expression for interval.");
+        return NULL;
     }
 
-    // print statement, expects [put][str_lit]
-    else if (Peek(0) && Peek(0)->Subtype == _KEY_PUT) {
-        Consume(); // put
-
-        Stmt->Put      = Alloc(NodeStmtPut, 1);
-
-        Stmt->Holds    = _STMT_PUT;
-        Stmt->Put      = Alloc(NodeStmtPut, 1);
-        Stmt->Put->Str = Alloc(char, strlen((char*)Peek(0)->Value) + 1);
-        strcpy(Stmt->Put->Str, (char*)Peek(0)->Value);
-
-        Consume(); // str_lit
+    if (!TryConsumeSub(_SPEC_RBRACK)) {
+        THROW_ERROR(_SYNTAX_ERROR, "Unclosed interval.");
+        return NULL;
     }
 
-    // assignment, expects [id][=][expr]
-    else if (Peek(0) && Peek(0)->Type == _ID && Peek(1) && Peek(1)->Subtype == _OP_EQ) {
+    NodeInterval* Interval = Alloc(NodeInterval, 1);
+    Interval->Beg          = Beg;
+    Interval->End          = End;
 
+    return Interval;
+}
+
+NodeStmtAsgn* TryParseAsgn() {
+    Token* Ident = TryConsumeType(_ID);
+    if (!Ident) { return NULL; }
+    if (!TryConsumeSub(_OP_EQ)) { return NULL; }
+
+    NodeExpr* Expr = NULL;
+    if (!(Expr = TryParseExpr(0))) {
+        THROW_ERROR(_SYNTAX_ERROR, "Could not parse expr for assign.");
+        return NULL;
+    }
+
+    NodeStmtAsgn* Asgn = Alloc(NodeStmtAsgn, 1);
+    Asgn->Expr         = Expr;
+    Asgn->Ident        = Alloc(NodeTermIdent, 1);
+    *(Asgn->Ident)     = (NodeTermIdent){ .Id = *Ident };
+
+    return Asgn;
+}
+
+NodeVarDef* TryParseVarDef() {
+    NodeDecl* Decl = NULL;
+    if (!(Decl = TryParseDecl())) { return NULL; }
+    if (!TryConsumeSub(_OP_EQ)) { return NULL; }
+
+    NodeExpr* Expr = NULL;
+    if (!(Expr = TryParseExpr(0))) {
+        THROW_ERROR(_SYNTAX_ERROR, "Could not parse expr for var_def.");
+        return NULL;
+    }
+
+    NodeVarDef* Def = Alloc(NodeVarDef, 1);
+    Def->Type       = Decl->Type;
+    Def->Ident      = Decl->Ident;
+    Def->Expr       = Expr;
+
+    return Def;
+}
+
+NodeDecl* TryParseDecl() {
+    Token* Type = TryConsumeType(_BITYPE);
+    if (!Type) { return NULL; }
+    if (!TryConsumeSub(_SPEC_COLON)) { return NULL; }
+
+    b8     IsMutable = TryConsumeSub(_KEY_VAR) ? true : false;
+
+    Token* Ident     = TryConsumeType(_ID);
+    if (!Ident) { return NULL; }
+
+    NodeDecl* Decl = Alloc(NodeDecl, 1);
+    Decl->Type     = Type->Subtype;
+    Decl->Ident    = Alloc(NodeTermIdent, 1);
+    *(Decl->Ident) = (NodeTermIdent){ .Id = *Ident, .IsMutable = IsMutable, .IsInit = false };
+
+    return Decl;
+}
+
+NodeScope* TryParseScope() {
+    if (!TryConsumeSub(_SPEC_LBRACE)) { return NULL; }
+
+    const u64  MAX_SCOPE_STATS = 1000;
+    NodeScope* Scope           = Alloc(NodeScope, 1);
+    Scope->Stats               = Alloc(NodeStmt*, MAX_SCOPE_STATS);
+
+    while (Peek(0) && Peek(0)->Subtype != _SPEC_RBRACE) {
+        NodeStmt* Stmt = NULL;
+
+        if (!(Stmt = TryParseStmt())) {
+            THROW_ERROR(_SYNTAX_ERROR, "Could not parse statement for scope.");
+            return NULL;
+        }
+
+        Scope->Stats[Scope->StatsLen++] = Stmt;
+    }
+
+    if (!TryConsumeSub(_SPEC_RBRACE)) {
+        THROW_ERROR(_SYNTAX_ERROR, "Unclosed scope.");
+        return NULL;
+    }
+
+    return Scope;
+}
+
+NodeStmtFor* TryParseFor() {
+    if (!TryConsumeSub(_KEY_FOR)) { return NULL; }
+
+    NodeVarDef* Def = NULL;
+    if (!(Def = TryParseVarDef())) {
+        THROW_ERROR(_SYNTAX_ERROR, "Could not parse definition for loop iterator.");
+        return NULL;
+    }
+
+    if (!TryConsumeSub(_SPEC_SEMI)) {
+        THROW_ERROR(_SYNTAX_ERROR, "Missing semicolon.");
+        return NULL;
+    }
+
+    NodeInterval* Interval = NULL;
+    if (!(Interval = TryParseInterval())) {
+        THROW_ERROR(_SYNTAX_ERROR, "Could not parse interval for loop.");
+        return NULL;
+    }
+
+    NodeScope* Scope = NULL;
+    if (!(Scope = TryParseScope())) {
+        THROW_ERROR(_SYNTAX_ERROR, "Could not parse scope for loop.");
+        return NULL;
+    }
+
+    NodeStmtFor* For = Alloc(NodeStmtFor, 1);
+    For->Def         = Def;
+    For->Type        = Def->Type;
+    For->Scope       = Scope;
+    For->Interval    = Interval;
+
+    return For;
+}
+
+NodeExit* TryParseExit() {
+    if (!TryConsumeSub(_KEY_EXIT)) { return NULL; }
+
+    NodeExpr* Expr = NULL;
+    if (!(Expr = TryParseExpr(0))) {
+        THROW_ERROR(_SYNTAX_ERROR, "Could not parse expression for exit.");
+        return NULL;
+    }
+
+    NodeExit* Exit = Alloc(NodeExit, 1);
+    Exit->Expr     = Expr;
+
+    return Exit;
+}
+
+NodeStmt* TryParseStmt() {
+    NodeStmt* Stmt = Alloc(NodeStmt, 1);
+
+    NodeExit* Exit = TryParseExit();
+    if (Exit) {
+        Stmt->Holds = _EXIT;
+        Stmt->Exit  = Exit;
+
+        if (!TryConsumeSub(_SPEC_SEMI)) {
+            THROW_ERROR(_SYNTAX_ERROR, "Missing semicolon.");
+            return NULL;
+        }
+
+        return Stmt;
+    }
+
+    NodeStmtFor* For = TryParseFor();
+    if (For) {
+        Stmt->Holds = _STMT_FOR;
+        Stmt->For   = For;
+
+        return Stmt;
+    }
+
+    NodeScope* Scope = TryParseScope();
+    if (Scope) {
+        Stmt->Holds = _SCOPE;
+        Stmt->Scope = Scope;
+
+        return Stmt;
+    }
+
+    NodeStmtAsgn* Asgn = TryParseAsgn();
+    if (Asgn) {
         Stmt->Holds = _STMT_ASGN;
-        Token Ident = *Peek(0);
+        Stmt->Asgn  = Asgn;
 
-        Consume(); // id
-        Consume(); // equals
-
-        Stmt->Asgn       = Alloc(NodeStmtAsgn, 1);
-        Stmt->Asgn->Expr = Alloc(NodeExpr, 1);
-
-        if ((Err = ParseExpr(Stmt->Asgn->Expr, 0))) { return Err; }
-
-        Stmt->Asgn->Ident    = Alloc(NodeTermIdent, 1);
-        *(Stmt->Asgn->Ident) = (NodeTermIdent){ .Id = Ident };
-    }
-
-    // definition or declaration, expects [type][:]
-    else if (Peek(0) && Peek(0)->Type == _BITYPE && Peek(1) && Peek(1)->Subtype == _SPEC_COLON) {
-
-        Stmt->Holds       = _STMT_DEF;
-        TokenSubtype Type = Peek(0)->Subtype;
-
-        Consume(); // type
-        Consume(); // colon
-
-        b8 IsMutable = Peek(0) && Peek(0)->Subtype == _KEY_VAR;
-        if (IsMutable) {
-            Consume(); // var
+        if (!TryConsumeSub(_SPEC_SEMI)) {
+            THROW_ERROR(_SYNTAX_ERROR, "Missing semicolon.");
+            return NULL;
         }
 
-        Token Ident = *Peek(0);
-        Consume(); // id
-
-        // declaration
-        if (Peek(0) && Peek(0)->Subtype == _SPEC_SEMI) {
-            Consume(); // semi
-
-            Stmt->Holds       = _STMT_DECL;
-
-            Stmt->Decl        = Alloc(NodeStmtDecl, 1);
-            Stmt->Decl->Type  = Type;
-            Stmt->Decl->Ident = Alloc(NodeTermIdent, 1);
-            *(Stmt->Decl->Ident) =
-                (NodeTermIdent){ .Id = Ident, .IsMutable = IsMutable, .IsInit = false };
-
-            return NO_ERROR;
-        }
-
-        // definition, expects [=][expr]
-        else if (Peek(0) && Peek(0)->Subtype == _OP_EQ) {
-            Consume(); // equals
-
-            Stmt->Def       = Alloc(NodeStmtDef, 1);
-            Stmt->Def->Expr = Alloc(NodeExpr, 1);
-
-            if ((Err = ParseExpr(Stmt->Def->Expr, 0))) { return Err; }
-
-            Stmt->Def->Type  = Type;
-            Stmt->Def->Ident = Alloc(NodeTermIdent, 1);
-            *(Stmt->Decl->Ident) =
-                (NodeTermIdent){ .Id = Ident, .IsMutable = IsMutable, .IsInit = true };
-        }
-
-        else {
-            return ERROR(_SYNTAX_ERROR, "Invalid statement.");
-        }
+        return Stmt;
     }
 
-    else {
-        return ERROR(
-            _SYNTAX_ERROR, "Invalid statement; got '%s'.", Peek(0) ? (char*)Peek(0)->Value : "null"
-        );
+    NodeVarDef* Def = TryParseVarDef();
+    if (Def) {
+        Stmt->Holds  = _VAR_DEF;
+        Stmt->VarDef = Def;
+
+        if (!TryConsumeSub(_SPEC_SEMI)) {
+            THROW_ERROR(_SYNTAX_ERROR, "Missing semicolon.");
+            return NULL;
+        }
+
+        return Stmt;
     }
 
-    // no semicolon to end
-    if (!Peek(0) || !(Peek(0)->Subtype == _SPEC_SEMI)) {
-        return ERROR(
-            _SYNTAX_ERROR, "Missing semicolon; got '%s'.", Peek(0) ? (char*)Peek(0)->Value : "null"
-        );
+    NodeDecl* Decl = TryParseDecl();
+    if (Decl) {
+        Stmt->Holds = _DECL;
+        Stmt->Decl  = Decl;
+
+        if (!TryConsumeSub(_SPEC_SEMI)) {
+            THROW_ERROR(_SYNTAX_ERROR, "Missing semicolon.");
+            return NULL;
+        }
+
+        return Stmt;
     }
 
-    Consume(); // semicolon
-    return NO_ERROR;
+    THROW_ERROR(
+        _SYNTAX_ERROR, "Invalid statement; got '%s'.",
+        Peek(0) ? GetTypeDebugName(Peek(0)->Type) : "null"
+    );
+    return NULL;
 }
 
-Error* ParseRoot(NodeRoot* Tree) {
-    Error* Err = NULL;
+NodeRoot* TryParseRoot() {
+
+    const u64 MAX_NODE_STATS = 1000;
+    NodeRoot* Tree           = Alloc(NodeRoot, 1);
+    Tree->Stats              = Alloc(NodeStmt*, MAX_NODE_STATS);
 
     while (Peek(0)) {
-        NodeStmt* Stmt = Alloc(NodeStmt, 1);
+        NodeStmt* Stmt = TryParseStmt();
+        if (!Stmt) { return NULL; }
 
-        if ((Err = ParseStmt(Stmt))) {
-            return Err;
-        } else {
-            Tree->Stats[Tree->StatsLen++] = Stmt;
-        }
+        Tree->Stats[Tree->StatsLen++] = Stmt;
     }
 
-    return NO_ERROR;
+    return Tree;
 }
 
-Error* Parse(const Token* Tokens, u64 TokensLen, NodeRoot* Tree) {
-    if (!Tokens) { return ERROR(_INVALID_ARG, "No tokens to parse."); }
-    if (!Tree) { return ERROR(_INVALID_ARG, "Null output parameter."); }
+NodeRoot* Parse(const Token* Tokens, u64 TokensLen) {
+    if (!Tokens) {
+        THROW_ERROR(_INVALID_ARG, "No tokens to parse.");
+        return NULL;
+    }
 
-    Error* Err = InitParser(Tokens, TokensLen);
-    if (Err) { return Err; }
+    if (!InitParser(Tokens, TokensLen)) { return NULL; }
 
-    if ((Err = ParseRoot(Tree))) { return Err; }
+    NodeRoot* Tree = TryParseRoot();
+    if (!Tree) {
+        THROW_ERROR(_SYNTAX_ERROR, "Could not parse program root.");
+        return NULL;
+    }
 
-    return NO_ERROR;
+    return Tree;
 }

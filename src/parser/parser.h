@@ -17,10 +17,13 @@ typedef struct Parser {
     u64    TokenIndex;
 } Parser;
 
-Error* InitParser(const Token* Tokens, u64 TokensLen);
+b8     InitParser(const Token* Tokens, u64 TokensLen);
 
 Token* Peek(u32 Offset);
 
 Token* Consume(void);
+
+Token* TryConsumeType(TokenType Type);
+Token* TryConsumeSub(TokenSubtype Sub);
 
 #endif

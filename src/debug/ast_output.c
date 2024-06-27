@@ -70,6 +70,49 @@ void OutputExpr(const NodeExpr* Expr) {
     jwEnd();
 }
 
+void OutputInterval(const NodeInterval* Interval) {
+    jw_object();
+
+    jw_key("min");
+    OutputExpr(Interval->Beg);
+
+    jw_key("max");
+    OutputExpr(Interval->End);
+
+    jwEnd();
+}
+
+void OutputScope(const NodeScope* Scope) {
+    jw_object();
+
+    // jw_array();
+    for (u64 i = 0; i < Scope->StatsLen; ++i) {
+        jw_key("stmt");
+        OutputStmt(Scope->Stats[i]);
+    }
+    // jwEnd();
+
+    jwEnd();
+}
+
+void OutputFor(const NodeStmtFor* For) {
+    jw_object();
+
+    jw_key("type");
+    jw_int(For->Type);
+
+    jw_key("id");
+    jw_string((char*)For->Def->Ident->Id.Value);
+
+    jw_key("scope");
+    OutputScope(For->Scope);
+
+    jw_key("range");
+    OutputInterval(For->Interval);
+
+    jwEnd();
+}
+
 void OutputAsgn(const NodeStmtAsgn* Asgn) {
     jw_object();
 
@@ -82,7 +125,7 @@ void OutputAsgn(const NodeStmtAsgn* Asgn) {
     jwEnd();
 }
 
-void OutputDecl(const NodeStmtDecl* Decl) {
+void OutputDecl(const NodeDecl* Decl) {
     jw_object();
 
     jw_key("type");
@@ -94,7 +137,7 @@ void OutputDecl(const NodeStmtDecl* Decl) {
     jwEnd();
 }
 
-void OutputDef(const NodeStmtDef* Def) {
+void OutputDef(const NodeVarDef* Def) {
     jw_object();
 
     jw_key("type");
@@ -109,16 +152,7 @@ void OutputDef(const NodeStmtDef* Def) {
     jwEnd();
 }
 
-void OutputPut(const NodeStmtPut* Put) {
-    jw_object();
-
-    jw_key("str");
-    jw_string(Put->Str);
-
-    jwEnd();
-}
-
-void OutputExit(const NodeStmtExit* Exit) {
+void OutputExit(const NodeExit* Exit) {
     jw_object();
 
     jw_key("expr");
@@ -134,34 +168,42 @@ void OutputStmt(const NodeStmt* Stmt) {
     jw_int(Stmt->Holds);
 
     switch (Stmt->Holds) {
-    case _STMT_EXIT: {
+    case _EXIT: {
         jw_key("exit");
         OutputExit(Stmt->Exit);
-    } break;
-    case _STMT_PUT: {
-        jw_key("print");
-        OutputPut(Stmt->Put);
     } break;
     case _STMT_ASGN: {
         jw_key("asgn");
         OutputAsgn(Stmt->Asgn);
     } break;
-    case _STMT_DECL: {
+    case _DECL: {
         jw_key("decl");
         OutputDecl(Stmt->Decl);
     } break;
-    case _STMT_DEF: {
+    case _VAR_DEF: {
         jw_key("def");
-        OutputDef(Stmt->Def);
+        OutputDef(Stmt->VarDef);
     } break;
+    case _STMT_FOR: {
+        jw_key("for");
+        OutputFor(Stmt->For);
+    } break;
+    case _SCOPE: {
+        jw_key("scope");
+        OutputScope(Stmt->Scope);
+    } break;
+
     default: break;
     }
 
     jwEnd();
 }
 
-Error* OutputAST(const NodeRoot* Tree, const char* Filename) {
-    if (!Tree) { return ERROR(_INVALID_ARG, "Null input AST."); }
+b8 OutputAST(const NodeRoot* Tree, const char* Filename) {
+    if (!Tree) {
+        THROW_ERROR(_INVALID_ARG, "Null input AST.");
+        return false;
+    }
 
     char AST[100000];
     jwOpen(AST, 100000, JW_ARRAY, JW_PRETTY);
@@ -173,14 +215,17 @@ Error* OutputAST(const NodeRoot* Tree, const char* Filename) {
 
     FILE* JsonFile = fopen(Filename, "w");
     if (!JsonFile) {
-        return ERROR(_RUNTIME_ERROR, "Could not open output file '%s' for write.", Filename);
+        THROW_ERROR(_RUNTIME_ERROR, "Could not open output file '%s' for write.", Filename);
+        return false;
     }
 
+    // puts(AST);
     fputs(AST, JsonFile);
 
     if (fclose(JsonFile) != 0) {
-        return ERROR(_RUNTIME_ERROR, "Could not close output file '%s'.", Filename);
+        THROW_ERROR(_RUNTIME_ERROR, "Could not close output file '%s'.", Filename);
+        return false;
     }
 
-    return NO_ERROR;
+    return true;
 }

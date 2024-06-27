@@ -11,15 +11,18 @@
 
 static Parser* State = NULL;
 
-Error*         InitParser(const Token* Tokens, u64 TokensLen) {
-    if (!Tokens) { return ERROR(_INVALID_ARG, "Null input tokens."); }
+b8             InitParser(const Token* Tokens, u64 TokensLen) {
+    if (!Tokens) {
+        THROW_ERROR(_INVALID_ARG, "Null input tokens.");
+        return false;
+    }
 
     State             = Alloc(Parser, 1);
     State->Tokens     = (Token*)Tokens;
     State->TokensLen  = TokensLen;
     State->TokenIndex = 0;
 
-    return NO_ERROR;
+    return true;
 }
 
 Token* Peek(u32 Offset) {
@@ -28,3 +31,13 @@ Token* Peek(u32 Offset) {
 }
 
 Token* Consume(void) { return State->Tokens + (State->TokenIndex++); }
+
+Token* TryConsumeType(TokenType Type) {
+    if (Peek(0) && Peek(0)->Type == Type) { return Consume(); }
+    return NULL;
+}
+
+Token* TryConsumeSub(TokenSubtype Sub) {
+    if (Peek(0) && Peek(0)->Subtype == Sub) { return Consume(); }
+    return NULL;
+}

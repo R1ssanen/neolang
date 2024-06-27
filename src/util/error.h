@@ -27,9 +27,22 @@ typedef struct Error {
     char*   Msg;
 } Error;
 
-Error* _MakeError(ErrCode Code, const char* Type, const char* File, const char* Fmt, ...);
+#include <string.h>
 
-#define ERROR(code, fmt, ...) _MakeError(code, #code, __FILE_NAME__, fmt, ##__VA_ARGS__)
+#include "../types.h"
+#include "../util/arena.h"
+
+extern Error** ErrorStack;
+extern u64     ErrorsCount;
+
+void           InitErrors(void);
+void           PrintErrorStack(void);
+
+Error*         _MakeError(ErrCode Code, const char* Type, const char* File, const char* Fmt, ...);
+
+#define ERROR(code, fmt, ...)       _MakeError(code, #code, __FILE_NAME__, fmt, ##__VA_ARGS__)
+
+#define THROW_ERROR(code, fmt, ...) ErrorStack[ErrorsCount++] = ERROR(code, fmt, ##__VA_ARGS__)
 
 #define PRINT_ERROR(code, fmt, ...)                                                                \
     {                                                                                              \

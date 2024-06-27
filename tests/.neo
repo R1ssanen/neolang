@@ -1,5 +1,9 @@
 $ neolang testfile $
 
-u32: num = 3 - (6 * 2);
-u8: ExitCode = 4 * (4 ^ 3) + 3 - (num + 3);
-exit ExitCode;
+u32: var N = 0;
+
+for u8: i = 0; [0..10] {
+    N = N + 1;
+}
+
+exit N;
