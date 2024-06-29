@@ -28,7 +28,8 @@ typedef enum NodeType {
 
     _STMT         = 0x00100000,
     _STMT_ASGN    = 0x00200000,
-    _STMT_FOR     = 0x00400000
+    _STMT_FOR     = 0x00400000,
+    _STMT_IF      = 0x00800000,
 } NodeType;
 
 struct NodeTermNumLit;
@@ -49,6 +50,7 @@ struct NodeInterval;
 
 struct NodeStmtAsgn;
 struct NodeStmtFor;
+struct NodeStmtIf;
 struct NodeStmt;
 
 typedef struct NodeTermNumLit {
@@ -103,6 +105,7 @@ typedef struct NodeVarDef {
 typedef struct NodeScope {
     struct NodeStmt** Stats;
     u64               StatsLen;
+    u32               ScopeID;
 } NodeScope;
 
 typedef struct NodeInterval {
@@ -122,6 +125,11 @@ typedef struct NodeStmtFor {
     TokenSubtype  Type;
 } NodeStmtFor;
 
+typedef struct NodeStmtIf {
+    NodeScope* Scope;
+    NodeExpr*  Expr;
+} NodeStmtIf;
+
 typedef struct NodeStmt {
     union {
         NodeExit*     Exit;
@@ -130,6 +138,7 @@ typedef struct NodeStmt {
         NodeStmtAsgn* Asgn;
         NodeScope*    Scope;
         NodeStmtFor*  For;
+        NodeStmtIf*   If;
     };
 
     NodeType Holds;

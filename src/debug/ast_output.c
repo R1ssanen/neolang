@@ -8,6 +8,18 @@
 #include "../util/error.h"
 #include "jWrite.h"
 
+void OutputIf(const NodeStmtIf* If) {
+    jw_object();
+
+    jw_key("expr");
+    OutputExpr(If->Expr);
+
+    jw_key("scope");
+    OutputScope(If->Scope);
+
+    jwEnd();
+}
+
 void OutputTerm(const NodeTerm* Term) {
     jw_object();
 
@@ -83,15 +95,8 @@ void OutputInterval(const NodeInterval* Interval) {
 }
 
 void OutputScope(const NodeScope* Scope) {
-    jw_object();
-
-    // jw_array();
-    for (u64 i = 0; i < Scope->StatsLen; ++i) {
-        jw_key("stmt");
-        OutputStmt(Scope->Stats[i]);
-    }
-    // jwEnd();
-
+    jw_array();
+    for (u64 i = 0; i < Scope->StatsLen; ++i) { OutputStmt(Scope->Stats[i]); }
     jwEnd();
 }
 
@@ -191,6 +196,10 @@ void OutputStmt(const NodeStmt* Stmt) {
     case _SCOPE: {
         jw_key("scope");
         OutputScope(Stmt->Scope);
+    } break;
+    case _STMT_IF: {
+        jw_key("if");
+        OutputIf(Stmt->If);
     } break;
 
     default: break;

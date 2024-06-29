@@ -16,7 +16,26 @@ static const u8    BYTESIZE[] = {
     [_BI_U32] = 4, [_BI_F32] = 4, [_BI_I64] = 8, [_BI_U64] = 8, [_BI_F64] = 8
 };
 
+b8 GenIf(const NodeStmtIf* If) {
+    TextEntry("\t\t; if\n");
+
+    if (!GenExpr(If->Expr)) { return false; }
+
+    static u64 IfID = 0;
+    ++IfID;
+
+    PopStack("rax");
+    TextEntry("\t\tcmp rax, 0\n");
+    TextEntry("\t\tje if%lu.se\n", IfID);
+
+    TextEntry("\tif%lu:\n", IfID);
+    if (!GenScope(If->Scope)) { return false; }
+
+    return true;
+}
+
 b8 GenTerm(const NodeTerm* Term) {
+    TextEntry("\t\t; term\n");
 
     if (Term->Holds == _TERM_NUMLIT) {
         if (Term->NumLit->Num.Subtype == _NUMLIT_INT) {
@@ -33,20 +52,22 @@ b8 GenTerm(const NodeTerm* Term) {
         Variable* Var = FindVar(Term->Ident);
 
         if (!Var) {
-            return ERROR(
+            THROW_ERROR(
                 _SEMANTIC_ERROR, "Variable '%s' doesn't exist.", (char*)Term->Ident->Id.Value
             );
+            return false;
         }
 
         if (!Var->Ident->IsInit) {
-            return ERROR(
+            THROW_ERROR(
                 _SEMANTIC_ERROR, "Accessing uninitialized variable '%s'.",
                 (char*)Term->Ident->Id.Value
             );
+            return false;
         }
 
         char VarValue[100];
-        sprintf(VarValue, "QWORD [rsp + %lu]", (State->StackPtr - Var->StackIndex - 1) * 8);
+        sprintf(VarValue, "QWORD [rsp + %lu]", (State->StackPtr - Var->StackIndex) * 8);
         PushStack(VarValue);
     }
 
@@ -59,37 +80,58 @@ b8 GenTerm(const NodeTerm* Term) {
 }
 
 b8 GenFor(const NodeStmtFor* For) {
+    TextEntry("\t\t; for loop\n");
+
+    BeginScope();
+
+    if (!GenVarDef(For->Def)) { return false; }
+    if (!GenExpr(For->Interval->End)) { return false; }
+    if (!GenExpr(For->Interval->Beg)) { return false; }
+
+    PopStack("rax"); // beg
+    PopStack("rbx"); // end
+    PopStack("rcx"); // iterator
+
+    TextEntry("\t\tsub rbx, rax\n");
+    TextEntry("\t\tadd rbx, rcx\n");
+
+    // save loop variables
+    PushStack("rcx");
+    PushStack("rbx");
+
     static u64 ForID = 0;
     ++ForID;
 
-    if (!GenExpr(For->Interval->Beg)) { return false; }
-    if (!GenExpr(For->Interval->End)) { return false; }
-
-    PopStack("rbx"); // end
-    PopStack("rax"); // beg
-
-    if (!GenVarDef(For->Def)) { return false; }
-    PopStack("rcx"); // iterator
-
-    TextEntry("\t\tmov rcx, rax\n"); // iterator
     TextEntry("\tfor%lu:\n", ForID);
 
     if (!GenScope(For->Scope)) { return false; }
 
+    // retrieve loop variables
+    PopStack("rbx");
+    PopStack("rcx");
+
     TextEntry("\t\tinc rcx\n");
     TextEntry("\t\tcmp rcx, rbx\n");
-    TextEntry("\t\tjle for%lu\n", ForID);
 
+    // save loop variables
+    PushStack("rcx");
+    PushStack("rbx");
+
+    TextEntry("\t\tjl for%lu\n", ForID);
+
+    EndScope();
+    // PopStack("rax");
     return true;
 }
 
 b8 GenBinExpr(const NodeBinExpr* BinExpr) {
+    TextEntry("\t\t; bin expr\n");
 
     if (!GenExpr(BinExpr->LHS)) { return false; }
     if (!GenExpr(BinExpr->RHS)) { return false; }
 
-    PopStack("rbx"); // rhs in rbx
-    PopStack("rax"); // lhs in rax
+    PopStack("rbx"); // rhs
+    PopStack("rax"); // lhs
 
     switch (BinExpr->Op) {
     case _OP_ADD: TextEntry("\t\tadd rax, rbx\n"); break;
@@ -105,12 +147,6 @@ b8 GenBinExpr(const NodeBinExpr* BinExpr) {
         static u8 ExpCount = 0;
         ++ExpCount;
 
-        // pow(rax, rbx)
-        // -------------
-        // while rbx > 0:
-        //  rbx--
-        //  rax = rax * rax
-
         TextEntry("\t\tmov rcx, rax\n"); // save initial lhs value
 
         TextEntry("\texp%d:\n", ExpCount);
@@ -118,6 +154,16 @@ b8 GenBinExpr(const NodeBinExpr* BinExpr) {
         TextEntry("\t\tmul rcx\n");
         TextEntry("\t\tcmp rbx, 1\n");
         TextEntry("\t\tjne exp%d\n", ExpCount);
+    } break;
+
+    case _OP_LSHIFT: { // <
+        TextEntry("\t\tcmp rax, rbx\n");
+        TextEntry("\t\tsetl al\n");
+    } break;
+
+    case _OP_RSHIFT: { // >
+        TextEntry("\t\tcmp rax, rbx\n");
+        TextEntry("\t\tsetg al\n");
     } break;
 
     default: {
@@ -131,6 +177,7 @@ b8 GenBinExpr(const NodeBinExpr* BinExpr) {
 }
 
 b8 GenExpr(const NodeExpr* Expr) {
+    TextEntry("\t\t; expr\n");
 
     if (Expr->Holds == _TERM) {
         if (!GenTerm(Expr->Term)) { return false; }
@@ -140,22 +187,30 @@ b8 GenExpr(const NodeExpr* Expr) {
         if (!GenBinExpr(Expr->BinExpr)) { return false; }
     }
 
+    else {
+        return false;
+    }
+
     return true;
 }
 
 b8 GenScope(const NodeScope* Scope) {
-    BeginScope();
+    TextEntry("\t\t; scope\n");
+
+    TextEntry("\t.sb:\n");
 
     for (u64 i = 0; i < Scope->StatsLen; ++i) {
         if (!GenStmt(Scope->Stats[i])) { return false; }
     }
 
-    return true;
+    TextEntry("\t.se:\n");
 
-    EndScope();
+    return true;
 }
 
 b8 GenExit(const NodeExit* Exit) {
+    TextEntry("\t\t; exit\n");
+
     if (!GenExpr(Exit->Expr)) { return false; }
 
     TextEntry("\n\t\tmov rax, 60\n");
@@ -166,6 +221,8 @@ b8 GenExit(const NodeExit* Exit) {
 }
 
 b8 GenVarDef(const NodeVarDef* Def) {
+    TextEntry("\t\t; var def\n");
+
     Variable* Var = FindVar(Def->Ident);
 
     if (Var) {
@@ -176,13 +233,16 @@ b8 GenVarDef(const NodeVarDef* Def) {
         return false;
     }
 
+    if (!GenExpr(Def->Expr)) { return false; }
+
     // new variable
     RegisterVar(Def->Ident, BYTESIZE[Def->Type]);
-    if (!GenExpr(Def->Expr)) { return false; }
     return true;
 }
 
 b8 GenDecl(const NodeDecl* Decl) {
+    TextEntry("\t\t; decl\n");
+
     Variable* Var = FindVar(Decl->Ident);
 
     if (Var) {
@@ -200,6 +260,8 @@ b8 GenDecl(const NodeDecl* Decl) {
 }
 
 b8 GenAsgn(const NodeStmtAsgn* Asgn) {
+    TextEntry("\t\t; assign\n");
+
     Variable* Var = FindVar(Asgn->Ident);
 
     if (!Var) {
@@ -219,7 +281,7 @@ b8 GenAsgn(const NodeStmtAsgn* Asgn) {
 
     if (Var->Ident->IsInit) {
         PopStack("rax");
-        TextEntry("\t\tmov [rsp + %lu], rax\n", (State->StackPtr - Var->StackIndex - 1) * 8);
+        TextEntry("\t\tmov [rsp + %lu], rax\n", (State->StackPtr - Var->StackIndex) * 8);
     }
 
     else {
@@ -251,6 +313,9 @@ b8 GenStmt(const NodeStmt* Stmt) {
     } break;
     case _STMT_FOR: {
         if (!GenFor(Stmt->For)) { return false; }
+    } break;
+    case _STMT_IF: {
+        if (!GenIf(Stmt->If)) { return false; }
     } break;
 
     default: THROW_ERROR(_SYNTAX_ERROR, "Invalid statement."); return false;

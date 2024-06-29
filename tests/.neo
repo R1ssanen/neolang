@@ -1,9 +1,16 @@
 $ neolang testfile $
 
-u32: var N = 0;
+u8: var T = 0;
 
-for u8: i = 0; [0..10] {
-    N = N + 1;
+for u8: i = 0; [0..5] {
+    
+    if i < 5 {
+        T = T + i;
+    }
+
+    if i > 3 {
+        T = T - 1;
+    }
 }
 
-exit N;
+exit T;

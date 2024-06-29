@@ -7,6 +7,7 @@
 #include "../parser/node_types.h"
 #include "../types.h"
 #include "../util/arena.h"
+#include "../util/error.h"
 
 Generator* State = NULL;
 
@@ -68,9 +69,9 @@ Variable* FindVar(const struct NodeTermIdent* Ident) {
     return NULL;
 }
 
-void BeginScope() { State->ScopeRegistry[State->ScopeCount++] = State->VarCount; }
+void BeginScope(void) { State->ScopeRegistry[State->ScopeCount++] = State->VarCount; }
 
-void EndScope() {
+void EndScope(void) {
     u64 ScopeVarCount = State->VarCount - State->ScopeRegistry[State->ScopeCount - 1];
 
     TextEntry("\t\tadd rsp, %lu\n", ScopeVarCount * 8);
@@ -81,5 +82,7 @@ void EndScope() {
     }
 
     State->VarCount -= ScopeVarCount;
-    State->ScopeRegistry[--State->ScopeCount - 1] = 0;
+    State->StackPtr -= ScopeVarCount;
+    State->ScopeRegistry[State->ScopeCount - 1] = 0;
+    --State->ScopeCount;
 }

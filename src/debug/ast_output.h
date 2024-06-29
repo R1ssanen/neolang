@@ -8,8 +8,8 @@
 #define AST_OUTPUT_H
 
 #include "../parser/node_types.h"
-#include "../util/error.h"
 
+void OutputIf(const NodeStmtIf* If);
 void OutputInterval(const NodeInterval* Interval);
 void OutputScope(const NodeScope* Scope);
 void OutputFor(const NodeStmtFor* For);

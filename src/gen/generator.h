@@ -8,7 +8,6 @@
 #define GENERATOR_H
 
 #include "../types.h"
-#include "../util/error.h"
 
 struct NodeTermIdent;
 struct NodeRoot;
@@ -60,7 +59,7 @@ void      PopStack(const char* Register);
 void      RegisterVar(const struct NodeTermIdent* Ident, u8 ByteSize);
 Variable* FindVar(const struct NodeTermIdent* Ident);
 
-void      BeginScope();
-void      EndScope();
+void      BeginScope(void);
+void      EndScope(void);
 
 #endif

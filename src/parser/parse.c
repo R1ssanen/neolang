@@ -12,7 +12,7 @@
 #include "opinfo.h"
 #include "parser.h"
 
-NodeTermNumLit* TryParseNumLit() {
+NodeTermNumLit* TryParseNumLit(void) {
     Token* Num = TryConsumeType(_NUMLIT);
     if (!Num) { return NULL; }
 
@@ -22,7 +22,7 @@ NodeTermNumLit* TryParseNumLit() {
     return NumLit;
 }
 
-NodeTermIdent* TryParseIdent() {
+NodeTermIdent* TryParseIdent(void) {
     Token* Id = TryConsumeType(_ID);
     if (!Id) { return NULL; }
 
@@ -32,7 +32,7 @@ NodeTermIdent* TryParseIdent() {
     return Ident;
 }
 
-NodeTerm* TryParseTerm() {
+NodeTerm* TryParseTerm(void) {
     NodeTermNumLit* NumLit = TryParseNumLit();
     if (NumLit) {
         NodeTerm* Term = Alloc(NodeTerm, 1);
@@ -108,7 +108,7 @@ NodeExpr* TryParseExpr(u8 MinPrec) {
     return LHS;
 }
 
-NodeInterval* TryParseInterval() {
+NodeInterval* TryParseInterval(void) {
     if (!TryConsumeSub(_SPEC_LBRACK)) { return NULL; }
 
     NodeExpr* Beg = NULL;
@@ -135,7 +135,7 @@ NodeInterval* TryParseInterval() {
     return Interval;
 }
 
-NodeStmtAsgn* TryParseAsgn() {
+NodeStmtAsgn* TryParseAsgn(void) {
     Token* Ident = TryConsumeType(_ID);
     if (!Ident) { return NULL; }
     if (!TryConsumeSub(_OP_EQ)) { return NULL; }
@@ -154,7 +154,7 @@ NodeStmtAsgn* TryParseAsgn() {
     return Asgn;
 }
 
-NodeVarDef* TryParseVarDef() {
+NodeVarDef* TryParseVarDef(void) {
     NodeDecl* Decl = NULL;
     if (!(Decl = TryParseDecl())) { return NULL; }
     if (!TryConsumeSub(_OP_EQ)) { return NULL; }
@@ -165,15 +165,16 @@ NodeVarDef* TryParseVarDef() {
         return NULL;
     }
 
-    NodeVarDef* Def = Alloc(NodeVarDef, 1);
-    Def->Type       = Decl->Type;
-    Def->Ident      = Decl->Ident;
-    Def->Expr       = Expr;
+    NodeVarDef* Def    = Alloc(NodeVarDef, 1);
+    Def->Type          = Decl->Type;
+    Def->Ident         = Decl->Ident;
+    Def->Ident->IsInit = true;
+    Def->Expr          = Expr;
 
     return Def;
 }
 
-NodeDecl* TryParseDecl() {
+NodeDecl* TryParseDecl(void) {
     Token* Type = TryConsumeType(_BITYPE);
     if (!Type) { return NULL; }
     if (!TryConsumeSub(_SPEC_COLON)) { return NULL; }
@@ -191,12 +192,16 @@ NodeDecl* TryParseDecl() {
     return Decl;
 }
 
-NodeScope* TryParseScope() {
+NodeScope* TryParseScope(void) {
     if (!TryConsumeSub(_SPEC_LBRACE)) { return NULL; }
 
     const u64  MAX_SCOPE_STATS = 1000;
     NodeScope* Scope           = Alloc(NodeScope, 1);
     Scope->Stats               = Alloc(NodeStmt*, MAX_SCOPE_STATS);
+    Scope->StatsLen            = 0;
+
+    static u32 ScopeID         = 0;
+    Scope->ScopeID             = ++ScopeID;
 
     while (Peek(0) && Peek(0)->Subtype != _SPEC_RBRACE) {
         NodeStmt* Stmt = NULL;
@@ -217,7 +222,29 @@ NodeScope* TryParseScope() {
     return Scope;
 }
 
-NodeStmtFor* TryParseFor() {
+NodeStmtIf* TryParseIf(void) {
+    if (!TryConsumeSub(_KEY_IF)) { return NULL; }
+
+    NodeExpr* Expr = NULL;
+    if (!(Expr = TryParseExpr(0))) {
+        THROW_ERROR(_SYNTAX_ERROR, "Could not parse expr for if-statement.");
+        return NULL;
+    }
+
+    NodeScope* Scope = NULL;
+    if (!(Scope = TryParseScope())) {
+        THROW_ERROR(_SYNTAX_ERROR, "Could not parse scope for if-statement.");
+        return NULL;
+    }
+
+    NodeStmtIf* If = Alloc(NodeStmtIf, 1);
+    If->Scope      = Scope;
+    If->Expr       = Expr;
+
+    return If;
+}
+
+NodeStmtFor* TryParseFor(void) {
     if (!TryConsumeSub(_KEY_FOR)) { return NULL; }
 
     NodeVarDef* Def = NULL;
@@ -227,19 +254,19 @@ NodeStmtFor* TryParseFor() {
     }
 
     if (!TryConsumeSub(_SPEC_SEMI)) {
-        THROW_ERROR(_SYNTAX_ERROR, "Missing semicolon.");
+        THROW_ERROR(_SYNTAX_ERROR, "Missing semicolon in for-statement.");
         return NULL;
     }
 
     NodeInterval* Interval = NULL;
     if (!(Interval = TryParseInterval())) {
-        THROW_ERROR(_SYNTAX_ERROR, "Could not parse interval for loop.");
+        THROW_ERROR(_SYNTAX_ERROR, "Could not parse interval for for-statement.");
         return NULL;
     }
 
     NodeScope* Scope = NULL;
     if (!(Scope = TryParseScope())) {
-        THROW_ERROR(_SYNTAX_ERROR, "Could not parse scope for loop.");
+        THROW_ERROR(_SYNTAX_ERROR, "Could not parse scope for for-statement.");
         return NULL;
     }
 
@@ -252,7 +279,7 @@ NodeStmtFor* TryParseFor() {
     return For;
 }
 
-NodeExit* TryParseExit() {
+NodeExit* TryParseExit(void) {
     if (!TryConsumeSub(_KEY_EXIT)) { return NULL; }
 
     NodeExpr* Expr = NULL;
@@ -267,7 +294,7 @@ NodeExit* TryParseExit() {
     return Exit;
 }
 
-NodeStmt* TryParseStmt() {
+NodeStmt* TryParseStmt(void) {
     NodeStmt* Stmt = Alloc(NodeStmt, 1);
 
     NodeExit* Exit = TryParseExit();
@@ -287,6 +314,14 @@ NodeStmt* TryParseStmt() {
     if (For) {
         Stmt->Holds = _STMT_FOR;
         Stmt->For   = For;
+
+        return Stmt;
+    }
+
+    NodeStmtIf* If = TryParseIf();
+    if (If) {
+        Stmt->Holds = _STMT_IF;
+        Stmt->If    = If;
 
         return Stmt;
     }
@@ -345,7 +380,7 @@ NodeStmt* TryParseStmt() {
     return NULL;
 }
 
-NodeRoot* TryParseRoot() {
+NodeRoot* TryParseRoot(void) {
 
     const u64 MAX_NODE_STATS = 1000;
     NodeRoot* Tree           = Alloc(NodeRoot, 1);

@@ -56,12 +56,12 @@ i32 main(i32 argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    for (u64 i = 0; i < TokensLen; ++i) {
+    /*for (u64 i = 0; i < TokensLen; ++i) {
         printf(
             "\tType: %-10s Subtype: 0x%-10X Value: %-10s\n", GetTypeDebugName(Tokens[i].Type),
             Tokens[i].Subtype, (char*)Tokens[i].Value
         );
-    }
+    }*/
 
     NodeRoot* Tree = Parse(Tokens, TokensLen);
     if (!Tree) {

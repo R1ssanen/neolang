@@ -10,7 +10,12 @@
   - [x] order of operations
   - [ ] negative numbers, negation
 - [x] scopes
-- [ ] if, elif, else, for, while
+- [ ] control flow
+- [x] for
+- [x] if
+- [ ] elif
+- [ ] else
+- [ ] while
 - [ ] functions & entry point
 - [ ] float math
 - [ ] boolean math

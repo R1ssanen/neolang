@@ -11,16 +11,17 @@
 #include "../types.h"
 #include "node_types.h"
 
-NodeTerm*     TryParseTerm();
+NodeStmtIf*   TryParseIf(void);
+NodeTerm*     TryParseTerm(void);
 NodeExpr*     TryParseExpr(u8 MinPrec);
-NodeExit*     TryParseExit();
-NodeVarDef*   TryParseVarDef();
-NodeDecl*     TryParseDecl();
-NodeStmtAsgn* TryParseAsgn();
-NodeScope*    TryParseScope();
-NodeStmtFor*  TryParseFor();
-NodeStmt*     TryParseStmt();
-NodeRoot*     TryParseRoot();
+NodeExit*     TryParseExit(void);
+NodeVarDef*   TryParseVarDef(void);
+NodeDecl*     TryParseDecl(void);
+NodeStmtAsgn* TryParseAsgn(void);
+NodeScope*    TryParseScope(void);
+NodeStmtFor*  TryParseFor(void);
+NodeStmt*     TryParseStmt(void);
+NodeRoot*     TryParseRoot(void);
 
 NodeRoot*     Parse(const Token* Tokens, u64 TokensLen);
 
