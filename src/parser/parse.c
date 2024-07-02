@@ -1,16 +1,117 @@
 #include "parse.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <string.h>
 
+#include "../lexer/opinfo.h"
 #include "../lexer/token_subtypes.h"
 #include "../lexer/token_types.h"
+#include "../limits.h"
 #include "../types.h"
 #include "../util/arena.h"
 #include "../util/error.h"
 #include "node_types.h"
-#include "opinfo.h"
 #include "parser.h"
+
+NodeStmtWhile* TryParseWhile(void) {
+    if (!TryConsumeSub(_KEY_WHILE)) { return NULL; }
+
+    NodeExpr* Expr = TryParseExpr();
+    if (!Expr) {
+        SYNTAX_ERR("Could not parse expr for while-statement.");
+        return NULL;
+    }
+
+    NodeScope* Scope = TryParseScope();
+    if (!Scope) {
+        SYNTAX_ERR("Could not parse scope for while-statement.");
+        return NULL;
+    }
+
+    NodeStmtWhile* While = Alloc(NodeStmtWhile, 1);
+    While->Scope         = Scope;
+    While->Expr          = Expr;
+
+    return While;
+}
+
+NodeFunDef* TryParseFunDef(void) {
+    NodeFunDecl* Decl = TryParseFunDecl();
+    if (!Decl) { return NULL; }
+
+    NodeScope* Scope = TryParseScope();
+    if (!Scope) {
+        SYNTAX_ERR("Could not parse scope for fun-def.");
+        return NULL;
+    }
+
+    NodeFunDef* FunDef = Alloc(NodeFunDef, 1);
+    FunDef->Decl       = Decl;
+    FunDef->Scope      = Scope;
+
+    return FunDef;
+}
+
+NodeFunDecl* TryParseFunDecl(void) {
+    NodeDecl* IdentDecl = TryParseDecl();
+    if (!IdentDecl) { return NULL; }
+    if (!TryConsumeSub(_SPEC_LPAREN)) { return NULL; }
+
+    NodeFunDecl* FunDecl = Alloc(NodeFunDecl, 1);
+
+    FunDecl->ArgDecls    = Alloc(NodeDecl*, MAX_FUN_ARGS);
+    FunDecl->ArgCount    = 0;
+    FunDecl->Decl        = IdentDecl;
+
+    // arguments comma separated
+    while (!TryConsumeSub(_SPEC_RPAREN)) {
+        NodeDecl* Decl = TryParseDecl();
+        if (!Decl) {
+            SYNTAX_ERR("Could not parse decl for call.");
+            return NULL;
+        }
+
+        FunDecl->ArgDecls[FunDecl->ArgCount++] = Decl;
+
+        if (!TryConsumeSub(_SPEC_COMMA) && Peek(1)->Subtype != _SPEC_RPAREN) {
+            SYNTAX_ERR("Function arguments must be comma separated.");
+            return NULL;
+        }
+    }
+
+    return FunDecl;
+}
+
+NodeCall* TryParseCall(void) {
+    NodeTermIdent* Ident = TryParseIdent();
+    if (!Ident) { return NULL; }
+    if (!TryConsumeSub(_SPEC_LPAREN)) { return NULL; }
+
+    NodeCall* Call = Alloc(NodeCall, 1);
+
+    Call->ArgExprs = Alloc(NodeExpr*, MAX_FUN_ARGS);
+    Call->ArgCount = 0;
+    Call->Ident    = Ident;
+
+    // arguments comma separated
+    while (!TryConsumeSub(_SPEC_RPAREN)) {
+        NodeExpr* Expr = TryParseExpr();
+        if (!Expr) {
+            SYNTAX_ERR("Could not parse argument for call.");
+            return NULL;
+        }
+
+        Call->ArgExprs[Call->ArgCount++] = Expr;
+
+        if (!TryConsumeSub(_SPEC_COMMA) && Peek(1)->Subtype != _SPEC_RPAREN) {
+            SYNTAX_ERR("Function arguments must be comma separated.");
+            return NULL;
+        }
+    }
+
+    return Call;
+}
 
 NodeTermNumLit* TryParseNumLit(void) {
     Token* Num = TryConsumeType(_NUMLIT);
@@ -54,77 +155,111 @@ NodeTerm* TryParseTerm(void) {
     }
 }
 
-NodeExpr* TryParseExpr(u8 MinPrec) {
-    NodeExpr* LHS = NULL;
+NodeExpr* TryParseBinExpr(u8 MinPrec) {
+    NodeExpr* Expr = Alloc(NodeExpr, 1);
 
     // subexpr
     if (TryConsumeSub(_SPEC_LPAREN)) {
-        if (!(LHS = TryParseExpr(0))) {
-            THROW_ERROR(_SYNTAX_ERROR, "Could not parse subexpression.");
+        if (!(Expr = TryParseBinExpr(0))) {
+            SYNTAX_ERR("Could not parse subexpression.");
             return NULL;
         }
 
         if (!TryConsumeSub(_SPEC_RPAREN)) {
-            THROW_ERROR(_SYNTAX_ERROR, "Unmatched parentheses.");
+            SYNTAX_ERR("Unmatched parentheses.");
             return NULL;
         }
     }
 
     else {
-        LHS        = Alloc(NodeExpr, 1);
-        LHS->Holds = _TERM;
-        LHS->Term  = TryParseTerm();
-        if (!LHS->Term) {
-            THROW_ERROR(_SYNTAX_ERROR, "Could not parse term for expression.");
+        NodeTerm* Term = TryParseTerm();
+        if (!Term) {
+            SYNTAX_ERR("Could not parse term for expression.");
             return NULL;
         }
+
+        Expr->Holds = _TERM;
+        Expr->Term  = Term;
     }
 
     while (Peek(0)) {
-        //  FIX: not every operator is a binary operator
+        // Token* Op = TryConsumeType(_OP);
+        //    FIX: not every operator is a binary operator
+        // if (!Op || OPINFOS[Op->Subtype].Prec < MinPrec) { break; }
         if (Peek(0)->Type != _OP || OPINFOS[Peek(0)->Subtype].Prec < MinPrec) { break; }
-
         Token*    Op          = Consume();
+
         OpInfo    Info        = OPINFOS[Op->Subtype];
         u8        NextMinPrec = (Info.Assoc == _ASSOC_LEFT) ? Info.Prec + 1 : Info.Prec;
 
-        NodeExpr* RHS         = TryParseExpr(NextMinPrec);
+        NodeExpr* RHS         = TryParseBinExpr(NextMinPrec);
         if (!RHS) {
-            THROW_ERROR(_SYNTAX_ERROR, "Could not parse bin_expr.");
+            SYNTAX_ERR("Could not parse bin_expr.");
             return NULL;
         }
 
-        NodeExpr* NewLHS     = Alloc(NodeExpr, 1);
-        NewLHS->Holds        = _BIN_EXPR;
-        NewLHS->BinExpr      = Alloc(NodeBinExpr, 1);
-        NewLHS->BinExpr->RHS = RHS;
-        NewLHS->BinExpr->Op  = Op->Subtype;
+        NodeExpr* LHS = Alloc(NodeExpr, 1);
+        memcpy(LHS, Expr, sizeof(NodeExpr));
 
-        NewLHS->BinExpr->LHS = Alloc(NodeExpr, 1);
-        memcpy(NewLHS->BinExpr->LHS, LHS, sizeof(NodeExpr));
-        memcpy(LHS, NewLHS, sizeof(NodeExpr));
+        Expr->Holds        = _BIN_EXPR;
+        Expr->BinExpr      = Alloc(NodeBinExpr, 1);
+        Expr->BinExpr->Op  = Op->Subtype;
+        Expr->BinExpr->LHS = LHS;
+        Expr->BinExpr->RHS = RHS;
     }
 
-    return LHS;
+    return Expr;
+}
+
+NodeExpr* TryParseExpr() {
+    NodeExpr*     Expr     = NULL;
+
+    NodeInterval* Interval = TryParseInterval();
+    if (Interval) {
+        Expr           = Alloc(NodeExpr, 1);
+        Expr->Holds    = _INTERVAL;
+        Expr->Interval = Interval;
+        return Expr;
+    }
+
+    NodeAsgn* Asgn = TryParseAsgn();
+    if (Asgn) {
+        Expr        = Alloc(NodeExpr, 1);
+        Expr->Holds = _ASGN;
+        Expr->Asgn  = Asgn;
+        return Expr;
+    }
+
+    NodeCall* Call = TryParseCall();
+    if (Call) {
+        Expr        = Alloc(NodeExpr, 1);
+        Expr->Holds = _CALL;
+        Expr->Call  = Call;
+        return Expr;
+    }
+
+    if ((Expr = TryParseBinExpr(0))) { return Expr; }
+
+    SYNTAX_ERR("Invalid expression. [%lu, %lu]", Peek(0)->Line, Peek(0)->Column);
+    return NULL;
 }
 
 NodeInterval* TryParseInterval(void) {
     if (!TryConsumeSub(_SPEC_LBRACK)) { return NULL; }
 
-    NodeExpr* Beg = NULL;
-    if (!(Beg = TryParseExpr(0))) { return NULL; }
+    NodeExpr* Beg = TryParseExpr();
+    if (!Beg) { return NULL; }
 
-    if (!TryConsumeSub(_SPEC_PERIOD)) { return NULL; }
-    if (!TryConsumeSub(_SPEC_PERIOD)) { return NULL; }
+    if (!TryConsumeSub(_SPEC_COMMA)) { return NULL; }
 
-    NodeExpr* End = NULL;
-    if (!(End = TryParseExpr(0))) {
-        THROW_ERROR(_SYNTAX_ERROR, "Could not parse expression for interval.");
+    NodeExpr* End = TryParseExpr();
+    if (!End) {
+        SYNTAX_ERR("Could not parse expression for interval.");
         return NULL;
     }
 
     if (!TryConsumeSub(_SPEC_RBRACK)) {
-        THROW_ERROR(_SYNTAX_ERROR, "Unclosed interval.");
+        SYNTAX_ERR("Unclosed interval.");
         return NULL;
     }
 
@@ -135,41 +270,40 @@ NodeInterval* TryParseInterval(void) {
     return Interval;
 }
 
-NodeStmtAsgn* TryParseAsgn(void) {
-    Token* Ident = TryConsumeType(_ID);
+NodeAsgn* TryParseAsgn(void) {
+    NodeTermIdent* Ident = TryParseIdent();
     if (!Ident) { return NULL; }
     if (!TryConsumeSub(_OP_EQ)) { return NULL; }
 
-    NodeExpr* Expr = NULL;
-    if (!(Expr = TryParseExpr(0))) {
-        THROW_ERROR(_SYNTAX_ERROR, "Could not parse expr for assign.");
+    NodeExpr* Expr = TryParseExpr();
+    if (!Expr) {
+        SYNTAX_ERR("Could not parse expr for assign.");
         return NULL;
     }
 
-    NodeStmtAsgn* Asgn = Alloc(NodeStmtAsgn, 1);
-    Asgn->Expr         = Expr;
-    Asgn->Ident        = Alloc(NodeTermIdent, 1);
-    *(Asgn->Ident)     = (NodeTermIdent){ .Id = *Ident };
+    NodeAsgn* Asgn = Alloc(NodeAsgn, 1);
+    Asgn->Expr     = Expr;
+    Asgn->Ident    = Ident;
 
     return Asgn;
 }
 
 NodeVarDef* TryParseVarDef(void) {
-    NodeDecl* Decl = NULL;
-    if (!(Decl = TryParseDecl())) { return NULL; }
+    NodeDecl* Decl = TryParseDecl();
+    if (!Decl) { return NULL; }
     if (!TryConsumeSub(_OP_EQ)) { return NULL; }
 
-    NodeExpr* Expr = NULL;
-    if (!(Expr = TryParseExpr(0))) {
-        THROW_ERROR(_SYNTAX_ERROR, "Could not parse expr for var_def.");
+    NodeExpr* Expr = TryParseExpr();
+    if (!Expr) {
+        SYNTAX_ERR("Could not parse expr for var_def.");
         return NULL;
     }
 
     NodeVarDef* Def    = Alloc(NodeVarDef, 1);
+    Def->Expr          = Expr;
     Def->Type          = Decl->Type;
     Def->Ident         = Decl->Ident;
     Def->Ident->IsInit = true;
-    Def->Expr          = Expr;
 
     return Def;
 }
@@ -179,15 +313,16 @@ NodeDecl* TryParseDecl(void) {
     if (!Type) { return NULL; }
     if (!TryConsumeSub(_SPEC_COLON)) { return NULL; }
 
-    b8     IsMutable = TryConsumeSub(_KEY_VAR) ? true : false;
+    b8             IsMutable = TryConsumeSub(_KEY_VAR) ? true : false;
 
-    Token* Ident     = TryConsumeType(_ID);
+    NodeTermIdent* Ident     = TryParseIdent();
     if (!Ident) { return NULL; }
 
-    NodeDecl* Decl = Alloc(NodeDecl, 1);
-    Decl->Type     = Type->Subtype;
-    Decl->Ident    = Alloc(NodeTermIdent, 1);
-    *(Decl->Ident) = (NodeTermIdent){ .Id = *Ident, .IsMutable = IsMutable, .IsInit = false };
+    NodeDecl* Decl         = Alloc(NodeDecl, 1);
+    Decl->Type             = Type->Subtype;
+    Decl->Ident            = Ident;
+    Decl->Ident->IsMutable = IsMutable;
+    Decl->Ident->IsInit    = false;
 
     return Decl;
 }
@@ -195,45 +330,45 @@ NodeDecl* TryParseDecl(void) {
 NodeScope* TryParseScope(void) {
     if (!TryConsumeSub(_SPEC_LBRACE)) { return NULL; }
 
-    const u64  MAX_SCOPE_STATS = 1000;
-    NodeScope* Scope           = Alloc(NodeScope, 1);
-    Scope->Stats               = Alloc(NodeStmt*, MAX_SCOPE_STATS);
-    Scope->StatsLen            = 0;
+    NodeStmt*  Stats[MAX_SCOPE_STATS];
 
-    static u32 ScopeID         = 0;
-    Scope->ScopeID             = ++ScopeID;
+    NodeScope* Scope = Alloc(NodeScope, 1);
+    Scope->StatCount = 0;
 
     while (Peek(0) && Peek(0)->Subtype != _SPEC_RBRACE) {
-        NodeStmt* Stmt = NULL;
+        NodeStmt* Stmt = TryParseStmt();
 
-        if (!(Stmt = TryParseStmt())) {
-            THROW_ERROR(_SYNTAX_ERROR, "Could not parse statement for scope.");
-            return NULL;
+        if (!Stmt) {
+            // SYNTAX_ERR("Could not parse statement for scope.");
+            // return NULL;
+            continue;
         }
 
-        Scope->Stats[Scope->StatsLen++] = Stmt;
+        Stats[Scope->StatCount++] = Stmt;
     }
 
     if (!TryConsumeSub(_SPEC_RBRACE)) {
-        THROW_ERROR(_SYNTAX_ERROR, "Unclosed scope.");
+        SYNTAX_ERR("Unclosed scope.");
         return NULL;
     }
 
+    Scope->Stats = Alloc(NodeStmt*, Scope->StatCount);
+    memcpy(Scope->Stats, Stats, Scope->StatCount * sizeof(NodeStmt*));
     return Scope;
 }
 
 NodeStmtIf* TryParseIf(void) {
     if (!TryConsumeSub(_KEY_IF)) { return NULL; }
 
-    NodeExpr* Expr = NULL;
-    if (!(Expr = TryParseExpr(0))) {
-        THROW_ERROR(_SYNTAX_ERROR, "Could not parse expr for if-statement.");
+    NodeExpr* Expr = TryParseExpr();
+    if (!Expr) {
+        SYNTAX_ERR("Could not parse expr for if-statement.");
         return NULL;
     }
 
-    NodeScope* Scope = NULL;
-    if (!(Scope = TryParseScope())) {
-        THROW_ERROR(_SYNTAX_ERROR, "Could not parse scope for if-statement.");
+    NodeScope* Scope = TryParseScope();
+    if (!Scope) {
+        SYNTAX_ERR("Could not parse scope for if-statement.");
         return NULL;
     }
 
@@ -247,26 +382,26 @@ NodeStmtIf* TryParseIf(void) {
 NodeStmtFor* TryParseFor(void) {
     if (!TryConsumeSub(_KEY_FOR)) { return NULL; }
 
-    NodeVarDef* Def = NULL;
-    if (!(Def = TryParseVarDef())) {
-        THROW_ERROR(_SYNTAX_ERROR, "Could not parse definition for loop iterator.");
+    NodeVarDef* Def = TryParseVarDef();
+    if (!Def) {
+        SYNTAX_ERR("Could not parse definition for loop iterator.");
         return NULL;
     }
 
-    if (!TryConsumeSub(_SPEC_SEMI)) {
-        THROW_ERROR(_SYNTAX_ERROR, "Missing semicolon in for-statement.");
+    if (!TryConsumeSub(_SPEC_COLON)) {
+        SYNTAX_ERR("Missing semicolon in for-statement.");
         return NULL;
     }
 
-    NodeInterval* Interval = NULL;
-    if (!(Interval = TryParseInterval())) {
-        THROW_ERROR(_SYNTAX_ERROR, "Could not parse interval for for-statement.");
+    NodeExpr* Expr = TryParseExpr();
+    if (!Expr) {
+        SYNTAX_ERR("Could not parse range expr for for-statement.");
         return NULL;
     }
 
-    NodeScope* Scope = NULL;
-    if (!(Scope = TryParseScope())) {
-        THROW_ERROR(_SYNTAX_ERROR, "Could not parse scope for for-statement.");
+    NodeScope* Scope = TryParseScope();
+    if (!Scope) {
+        SYNTAX_ERR("Could not parse scope for for-statement.");
         return NULL;
     }
 
@@ -274,22 +409,22 @@ NodeStmtFor* TryParseFor(void) {
     For->Def         = Def;
     For->Type        = Def->Type;
     For->Scope       = Scope;
-    For->Interval    = Interval;
+    For->Expr        = Expr;
 
     return For;
 }
 
-NodeExit* TryParseExit(void) {
+NodeStmtExit* TryParseExit(void) {
     if (!TryConsumeSub(_KEY_EXIT)) { return NULL; }
 
-    NodeExpr* Expr = NULL;
-    if (!(Expr = TryParseExpr(0))) {
-        THROW_ERROR(_SYNTAX_ERROR, "Could not parse expression for exit.");
+    NodeExpr* Expr = TryParseExpr();
+    if (!Expr) {
+        SYNTAX_ERR("Could not parse expression for exit.");
         return NULL;
     }
 
-    NodeExit* Exit = Alloc(NodeExit, 1);
-    Exit->Expr     = Expr;
+    NodeStmtExit* Exit = Alloc(NodeStmtExit, 1);
+    Exit->Expr         = Expr;
 
     return Exit;
 }
@@ -297,118 +432,90 @@ NodeExit* TryParseExit(void) {
 NodeStmt* TryParseStmt(void) {
     NodeStmt* Stmt = Alloc(NodeStmt, 1);
 
-    NodeExit* Exit = TryParseExit();
-    if (Exit) {
-        Stmt->Holds = _EXIT;
-        Stmt->Exit  = Exit;
-
-        if (!TryConsumeSub(_SPEC_SEMI)) {
-            THROW_ERROR(_SYNTAX_ERROR, "Missing semicolon.");
-            return NULL;
-        }
-
-        return Stmt;
-    }
-
-    NodeStmtFor* For = TryParseFor();
-    if (For) {
+    if ((Stmt->For = TryParseFor())) {
         Stmt->Holds = _STMT_FOR;
-        Stmt->For   = For;
-
         return Stmt;
     }
 
-    NodeStmtIf* If = TryParseIf();
-    if (If) {
+    else if ((Stmt->If = TryParseIf())) {
         Stmt->Holds = _STMT_IF;
-        Stmt->If    = If;
-
         return Stmt;
     }
 
-    NodeScope* Scope = TryParseScope();
-    if (Scope) {
+    else if ((Stmt->While = TryParseWhile())) {
+        Stmt->Holds = _STMT_WHILE;
+        return Stmt;
+    }
+
+    else if ((Stmt->Scope = TryParseScope())) {
         Stmt->Holds = _SCOPE;
-        Stmt->Scope = Scope;
-
         return Stmt;
     }
 
-    NodeStmtAsgn* Asgn = TryParseAsgn();
-    if (Asgn) {
-        Stmt->Holds = _STMT_ASGN;
-        Stmt->Asgn  = Asgn;
-
-        if (!TryConsumeSub(_SPEC_SEMI)) {
-            THROW_ERROR(_SYNTAX_ERROR, "Missing semicolon.");
-            return NULL;
-        }
-
-        return Stmt;
+    else if ((Stmt->Exit = TryParseExit())) {
+        Stmt->Holds = _STMT_EXIT;
     }
 
-    NodeVarDef* Def = TryParseVarDef();
-    if (Def) {
-        Stmt->Holds  = _VAR_DEF;
-        Stmt->VarDef = Def;
-
-        if (!TryConsumeSub(_SPEC_SEMI)) {
-            THROW_ERROR(_SYNTAX_ERROR, "Missing semicolon.");
-            return NULL;
-        }
-
-        return Stmt;
+    else if ((Stmt->Asgn = TryParseAsgn())) {
+        Stmt->Holds = _ASGN;
     }
 
-    NodeDecl* Decl = TryParseDecl();
-    if (Decl) {
+    else if ((Stmt->VarDef = TryParseVarDef())) {
+        Stmt->Holds = _VAR_DEF;
+    }
+
+    else if ((Stmt->Decl = TryParseDecl())) {
         Stmt->Holds = _DECL;
-        Stmt->Decl  = Decl;
-
-        if (!TryConsumeSub(_SPEC_SEMI)) {
-            THROW_ERROR(_SYNTAX_ERROR, "Missing semicolon.");
-            return NULL;
-        }
-
-        return Stmt;
     }
 
-    THROW_ERROR(
-        _SYNTAX_ERROR, "Invalid statement; got '%s'.",
-        Peek(0) ? GetTypeDebugName(Peek(0)->Type) : "null"
-    );
-    return NULL;
+    else if ((Stmt->FunDef = TryParseFunDef())) {
+        Stmt->Holds = _FUN_DEF;
+    }
+
+    else if ((Stmt->FunDecl = TryParseFunDecl())) {
+        Stmt->Holds = _FUN_DECL;
+    }
+
+    else if ((Stmt->Call = TryParseCall())) {
+        Stmt->Holds = _CALL;
+    }
+
+    else {
+        printf("%s, [%lu, %lu]\n", (char*)Peek(0)->Value, Peek(0)->Line, Peek(0)->Column);
+        return NULL;
+    }
+
+    if (!TryConsumeSub(_SPEC_SEMI)) {
+        SYNTAX_ERR("Missing semicolon. [%lu, %lu]", Peek(0)->Line, Peek(0)->Column);
+    }
+
+    return Stmt;
 }
 
 NodeRoot* TryParseRoot(void) {
+    NodeRoot* Tree  = Alloc(NodeRoot, 1);
+    Tree->Stats     = Alloc(NodeStmt*, MAX_NODE_STATS);
+    Tree->StatCount = 0;
 
-    const u64 MAX_NODE_STATS = 1000;
-    NodeRoot* Tree           = Alloc(NodeRoot, 1);
-    Tree->Stats              = Alloc(NodeStmt*, MAX_NODE_STATS);
-
+    b8 HasErrors    = false;
     while (Peek(0)) {
-        NodeStmt* Stmt = TryParseStmt();
-        if (!Stmt) { return NULL; }
+        assert(Tree->StatCount < MAX_NODE_STATS && "Max statement count exceeded.");
 
-        Tree->Stats[Tree->StatsLen++] = Stmt;
+        NodeStmt* Stmt = TryParseStmt();
+        if (!Stmt) {
+            HasErrors = true;
+        } else {
+            Tree->Stats[Tree->StatCount++] = Stmt;
+        }
     }
 
+    if (HasErrors) { return NULL; }
     return Tree;
 }
 
-NodeRoot* Parse(const Token* Tokens, u64 TokensLen) {
-    if (!Tokens) {
-        THROW_ERROR(_INVALID_ARG, "No tokens to parse.");
-        return NULL;
-    }
+NodeRoot* Parse(const Token* Tokens, u64 TokenCount) {
+    if (!Tokens) { ARG_ERR("No tokens to parse."); }
 
-    if (!InitParser(Tokens, TokensLen)) { return NULL; }
-
-    NodeRoot* Tree = TryParseRoot();
-    if (!Tree) {
-        THROW_ERROR(_SYNTAX_ERROR, "Could not parse program root.");
-        return NULL;
-    }
-
-    return Tree;
+    InitParser(Tokens, TokenCount);
+    return TryParseRoot();
 }

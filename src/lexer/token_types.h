@@ -15,36 +15,26 @@ extern const char* BITYPES[];
 typedef enum TokenType {
     _INVALID = 0,
 
-    // identifier
-    _ID      = 0x00000001,
-
-    // keyword
-    _KEY     = 0x00000002,
-
-    // operator
-    _OP      = 0x00000004,
-
-    // string literal
-    _STRLIT  = 0x00000008,
-
-    // numeric literal
-    _NUMLIT  = 0x00000010,
-
-    // special symbol
-    _SPEC    = 0x00000020,
-
-    // built-in type
-    _BITYPE  = 0x00000040
+    _ID,
+    _KEY,
+    _OP,
+    _STRLIT,
+    _NUMLIT,
+    _SPEC,
+    _BITYPE,
 } TokenType;
 
 const char* GetTypeDebugName(TokenType Type);
 
+#include "../types.h"
 #include "token_subtypes.h"
 
 typedef struct Token {
     void*        Value;
     TokenType    Type;
     TokenSubtype Subtype;
+    u64          Line;
+    u64          Column;
 } Token;
 
 #endif

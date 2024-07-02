@@ -11,11 +11,11 @@
   - [ ] negative numbers, negation
 - [x] scopes
 - [ ] control flow
-- [x] for
-- [x] if
-- [ ] elif
-- [ ] else
-- [ ] while
+  - [x] for
+  - [x] if
+  - [ ] elif
+  - [ ] else
+  - [ ] while
 - [ ] functions & entry point
 - [ ] float math
 - [ ] boolean math

@@ -1,3 +1,9 @@
+/**
+ * @file lexer/opinfo.h
+ * @brief Operator information.
+ * @author github.com/r1ssanen
+ */
+
 #ifndef OPINFO_H
 #define OPINFO_H
 

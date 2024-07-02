@@ -46,6 +46,7 @@ typedef enum TokenSubtype {
     _KEY_EXIT     = 0x00008000,
     _KEY_FOR      = 0x00010000,
     _KEY_CONT     = 0x00020000,
+    _KEY_WHILE    = 0x00040000,
 
     // built-in types
     _BI_B8        = 0x00100000,
@@ -65,10 +66,6 @@ typedef enum TokenSubtype {
     _NUMLIT_FLOAT = 0x40000002,
     _NUMLIT_DOUBL = 0x40000004
 } TokenSubtype;
-
-// "+", "-", "*", "/", "=", "<", ">", "~", "#", "@"
-// "[", "]", "(", ")", "{", "}", ",", ":", ";", ".",
-// "true", "false", "ret", "if", "elif", "else", "var", "exit", "put"
 
 extern const TokenSubtype KEYSUBTYPES[];
 extern const TokenSubtype BISUBTYPES[];

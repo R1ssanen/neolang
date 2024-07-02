@@ -96,7 +96,7 @@ void OutputInterval(const NodeInterval* Interval) {
 
 void OutputScope(const NodeScope* Scope) {
     jw_array();
-    for (u64 i = 0; i < Scope->StatsLen; ++i) { OutputStmt(Scope->Stats[i]); }
+    for (u64 i = 0; i < Scope->StatCount; ++i) { OutputStmt(Scope->Stats[i]); }
     jwEnd();
 }
 
@@ -113,12 +113,12 @@ void OutputFor(const NodeStmtFor* For) {
     OutputScope(For->Scope);
 
     jw_key("range");
-    OutputInterval(For->Interval);
+    OutputExpr(For->Expr);
 
     jwEnd();
 }
 
-void OutputAsgn(const NodeStmtAsgn* Asgn) {
+void OutputAsgn(const NodeAsgn* Asgn) {
     jw_object();
 
     jw_key("id");
@@ -157,7 +157,7 @@ void OutputDef(const NodeVarDef* Def) {
     jwEnd();
 }
 
-void OutputExit(const NodeExit* Exit) {
+void OutputExit(const NodeStmtExit* Exit) {
     jw_object();
 
     jw_key("expr");
@@ -173,11 +173,11 @@ void OutputStmt(const NodeStmt* Stmt) {
     jw_int(Stmt->Holds);
 
     switch (Stmt->Holds) {
-    case _EXIT: {
+    case _STMT_EXIT: {
         jw_key("exit");
         OutputExit(Stmt->Exit);
     } break;
-    case _STMT_ASGN: {
+    case _ASGN: {
         jw_key("asgn");
         OutputAsgn(Stmt->Asgn);
     } break;
@@ -208,33 +208,24 @@ void OutputStmt(const NodeStmt* Stmt) {
     jwEnd();
 }
 
-b8 OutputAST(const NodeRoot* Tree, const char* Filename) {
-    if (!Tree) {
-        THROW_ERROR(_INVALID_ARG, "Null input AST.");
-        return false;
-    }
+#include "../limits.h"
 
-    char AST[100000];
-    jwOpen(AST, 100000, JW_ARRAY, JW_PRETTY);
+void OutputAST(const NodeRoot* Tree, const char* Filename) {
+    if (!Tree) { ARG_ERR("Null input AST."); }
 
-    for (u32 i = 0; i < Tree->StatsLen; ++i) { OutputStmt(Tree->Stats[i]); }
+    char AST[MAX_AST_JSON_FILESIZE];
+    jwOpen(AST, MAX_AST_JSON_FILESIZE, JW_ARRAY, JW_PRETTY);
+
+    for (u32 i = 0; i < Tree->StatCount; ++i) { OutputStmt(Tree->Stats[i]); }
 
     jwEnd();
     jwClose();
 
     FILE* JsonFile = fopen(Filename, "w");
-    if (!JsonFile) {
-        THROW_ERROR(_RUNTIME_ERROR, "Could not open output file '%s' for write.", Filename);
-        return false;
-    }
+    if (!JsonFile) { RUNTIME_ERR("Could not open output file '%s' for write.", Filename); }
 
-    // puts(AST);
+    puts(AST);
     fputs(AST, JsonFile);
 
-    if (fclose(JsonFile) != 0) {
-        THROW_ERROR(_RUNTIME_ERROR, "Could not close output file '%s'.", Filename);
-        return false;
-    }
-
-    return true;
+    if (fclose(JsonFile) != 0) { RUNTIME_ERR("Could not close output file '%s'.", Filename); }
 }

@@ -1,5 +1,6 @@
 #include "generate.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,10 +17,55 @@ static const u8    BYTESIZE[] = {
     [_BI_U32] = 4, [_BI_F32] = 4, [_BI_I64] = 8, [_BI_U64] = 8, [_BI_F64] = 8
 };
 
-b8 GenIf(const NodeStmtIf* If) {
+void GenWhile(const NodeStmtWhile* While) {
+    TextEntry("\t\t; while\n");
+
+    BeginScope();
+
+    // if (!GenExpr(While->Expr)) { return false; }
+
+    static u64 WhileID = 0;
+    ++WhileID;
+
+    TextEntry("\twhile%lu:\n", WhileID);
+
+    GenScope(While->Scope);
+    GenExpr(While->Expr);
+
+    // retrieve loop variable
+    PopStack("rax");
+    TextEntry("\t\tcmp rax, 1\n");
+
+    // save loop variable
+    PushStack("rax");
+    TextEntry("\t\tje while%lu\n", WhileID);
+
+    EndScope();
+}
+
+void GenFunDef(const NodeFunDef* FunDef) { assert(false && "Unimplemented"); }
+
+void GenFunDecl(const NodeFunDecl* FunDecl) { assert(false && "Unimplented"); }
+
+void GenCall(const NodeCall* Call) { assert(false && "Unimplemented"); }
+
+void GenInterval(const NodeInterval* Interval) {
+    TextEntry("\t\t; interval\n");
+
+    GenExpr(Interval->End);
+    GenExpr(Interval->Beg);
+
+    PopStack("rax"); // beg
+    PopStack("rbx"); // end
+
+    TextEntry("\t\tsub rbx, rax\n");
+    PushStack("rbx");
+}
+
+void GenIf(const NodeStmtIf* If) {
     TextEntry("\t\t; if\n");
 
-    if (!GenExpr(If->Expr)) { return false; }
+    GenExpr(If->Expr);
 
     static u64 IfID = 0;
     ++IfID;
@@ -29,12 +75,10 @@ b8 GenIf(const NodeStmtIf* If) {
     TextEntry("\t\tje if%lu.se\n", IfID);
 
     TextEntry("\tif%lu:\n", IfID);
-    if (!GenScope(If->Scope)) { return false; }
-
-    return true;
+    GenScope(If->Scope);
 }
 
-b8 GenTerm(const NodeTerm* Term) {
+void GenTerm(const NodeTerm* Term) {
     TextEntry("\t\t; term\n");
 
     if (Term->Holds == _TERM_NUMLIT) {
@@ -52,18 +96,18 @@ b8 GenTerm(const NodeTerm* Term) {
         Variable* Var = FindVar(Term->Ident);
 
         if (!Var) {
-            THROW_ERROR(
+            /*THROW_ERROR(
                 _SEMANTIC_ERROR, "Variable '%s' doesn't exist.", (char*)Term->Ident->Id.Value
-            );
-            return false;
+            );*/
+            return;
         }
 
         if (!Var->Ident->IsInit) {
-            THROW_ERROR(
+            /*THROW_ERROR(
                 _SEMANTIC_ERROR, "Accessing uninitialized variable '%s'.",
                 (char*)Term->Ident->Id.Value
-            );
-            return false;
+            );*/
+            return;
         }
 
         char VarValue[100];
@@ -72,63 +116,55 @@ b8 GenTerm(const NodeTerm* Term) {
     }
 
     else {
-        THROW_ERROR(_SYNTAX_ERROR, "Invalid term.");
-        return false;
+        RUNTIME_ERR("Invalid term.");
     }
-
-    return true;
 }
 
-b8 GenFor(const NodeStmtFor* For) {
+void GenFor(const NodeStmtFor* For) {
     TextEntry("\t\t; for loop\n");
 
     BeginScope();
 
-    if (!GenVarDef(For->Def)) { return false; }
-    if (!GenExpr(For->Interval->End)) { return false; }
-    if (!GenExpr(For->Interval->Beg)) { return false; }
+    GenVarDef(For->Def);
+    GenExpr(For->Expr);
 
-    PopStack("rax"); // beg
-    PopStack("rbx"); // end
+    PopStack("rax"); // range
     PopStack("rcx"); // iterator
 
-    TextEntry("\t\tsub rbx, rax\n");
-    TextEntry("\t\tadd rbx, rcx\n");
+    TextEntry("\t\tadd rax, rcx\n");
 
     // save loop variables
     PushStack("rcx");
-    PushStack("rbx");
+    PushStack("rax");
 
     static u64 ForID = 0;
     ++ForID;
 
     TextEntry("\tfor%lu:\n", ForID);
 
-    if (!GenScope(For->Scope)) { return false; }
+    GenScope(For->Scope);
 
     // retrieve loop variables
-    PopStack("rbx");
+    PopStack("rax");
     PopStack("rcx");
 
     TextEntry("\t\tinc rcx\n");
-    TextEntry("\t\tcmp rcx, rbx\n");
+    TextEntry("\t\tcmp rcx, rax\n");
 
     // save loop variables
     PushStack("rcx");
-    PushStack("rbx");
+    PushStack("rax");
 
     TextEntry("\t\tjl for%lu\n", ForID);
 
     EndScope();
-    // PopStack("rax");
-    return true;
 }
 
-b8 GenBinExpr(const NodeBinExpr* BinExpr) {
+void GenBinExpr(const NodeBinExpr* BinExpr) {
     TextEntry("\t\t; bin expr\n");
 
-    if (!GenExpr(BinExpr->LHS)) { return false; }
-    if (!GenExpr(BinExpr->RHS)) { return false; }
+    GenExpr(BinExpr->LHS);
+    GenExpr(BinExpr->RHS);
 
     PopStack("rbx"); // rhs
     PopStack("rax"); // lhs
@@ -147,13 +183,21 @@ b8 GenBinExpr(const NodeBinExpr* BinExpr) {
         static u8 ExpCount = 0;
         ++ExpCount;
 
-        TextEntry("\t\tmov rcx, rax\n"); // save initial lhs value
-
         TextEntry("\texp%d:\n", ExpCount);
-        TextEntry("\t\tdec rbx\n");
+
+        // skip if N is 1
+        TextEntry("\t\tcmp rbx, 1\n");
+        TextEntry("\t\tje .ee\n");
+
+        TextEntry("\t\tmov rcx, rax\n"); // save initial lhs value
+        TextEntry("\t.eb:\n");
+
         TextEntry("\t\tmul rcx\n");
         TextEntry("\t\tcmp rbx, 1\n");
-        TextEntry("\t\tjne exp%d\n", ExpCount);
+        TextEntry("\t\tdec rbx\n");
+        TextEntry("\t\tjg .eb\n");
+
+        TextEntry("\t.ee:\n");
     } break;
 
     case _OP_LSHIFT: { // <
@@ -167,117 +211,105 @@ b8 GenBinExpr(const NodeBinExpr* BinExpr) {
     } break;
 
     default: {
-        THROW_ERROR(_SYNTAX_ERROR, "Invalid binary expression.");
-        return false;
+        RUNTIME_ERR("Invalid binary expression.");
     } break;
     }
 
     PushStack("rax");
-    return true;
 }
 
-b8 GenExpr(const NodeExpr* Expr) {
+void GenExpr(const NodeExpr* Expr) {
     TextEntry("\t\t; expr\n");
 
-    if (Expr->Holds == _TERM) {
-        if (!GenTerm(Expr->Term)) { return false; }
-    }
+    switch (Expr->Holds) {
+    case _TERM: GenTerm(Expr->Term); break;
+    case _BIN_EXPR: GenBinExpr(Expr->BinExpr); break;
+    case _INTERVAL: GenInterval(Expr->Interval); break;
+    case _ASGN: GenAsgn(Expr->Asgn); break;
+    case _CALL: GenCall(Expr->Call); break;
 
-    else if (Expr->Holds == _BIN_EXPR) {
-        if (!GenBinExpr(Expr->BinExpr)) { return false; }
+    default: {
+        RUNTIME_ERR("Invalid expression.");
     }
-
-    else {
-        return false;
     }
-
-    return true;
 }
 
-b8 GenScope(const NodeScope* Scope) {
+void GenScope(const NodeScope* Scope) {
     TextEntry("\t\t; scope\n");
 
     TextEntry("\t.sb:\n");
 
-    for (u64 i = 0; i < Scope->StatsLen; ++i) {
-        if (!GenStmt(Scope->Stats[i])) { return false; }
-    }
+    for (u64 i = 0; i < Scope->StatCount; ++i) { GenStmt(Scope->Stats[i]); }
 
     TextEntry("\t.se:\n");
-
-    return true;
 }
 
-b8 GenExit(const NodeExit* Exit) {
+void GenExit(const NodeStmtExit* Exit) {
     TextEntry("\t\t; exit\n");
 
-    if (!GenExpr(Exit->Expr)) { return false; }
+    GenExpr(Exit->Expr);
 
     TextEntry("\n\t\tmov rax, 60\n");
     PopStack("rdi");
     TextEntry("\t\tsyscall\n");
-
-    return true;
 }
 
-b8 GenVarDef(const NodeVarDef* Def) {
+void GenVarDef(const NodeVarDef* Def) {
     TextEntry("\t\t; var def\n");
 
     Variable* Var = FindVar(Def->Ident);
 
     if (Var) {
-        THROW_ERROR(
+        /*THROW_ERROR(
             _SEMANTIC_ERROR, "Variable '%s' already taken at stack position %lu.",
             (char*)Def->Ident->Id.Value, Var->StackIndex
-        );
-        return false;
+        );*/
+        return;
     }
 
-    if (!GenExpr(Def->Expr)) { return false; }
+    GenExpr(Def->Expr);
 
     // new variable
     RegisterVar(Def->Ident, BYTESIZE[Def->Type]);
-    return true;
 }
 
-b8 GenDecl(const NodeDecl* Decl) {
+void GenDecl(const NodeDecl* Decl) {
     TextEntry("\t\t; decl\n");
 
     Variable* Var = FindVar(Decl->Ident);
 
     if (Var) {
-        THROW_ERROR(
+        /*THROW_ERROR(
             _SEMANTIC_ERROR, "Variable '%s' already taken at stack position %lu.",
             (char*)Decl->Ident->Id.Value, Var->StackIndex
-        );
-        return false;
+        );*/
+        return;
     }
 
     // new variable
     RegisterVar(Decl->Ident, BYTESIZE[Decl->Type]);
-
-    return true;
 }
 
-b8 GenAsgn(const NodeStmtAsgn* Asgn) {
+void GenAsgn(const NodeAsgn* Asgn) {
     TextEntry("\t\t; assign\n");
 
     Variable* Var = FindVar(Asgn->Ident);
 
     if (!Var) {
-        THROW_ERROR(_SEMANTIC_ERROR, "Variable '%s' doesn't exist.", (char*)Var->Ident->Id.Value);
-        return false;
+        // THROW_ERROR(_SEMANTIC_ERROR, "Variable '%s' doesn't exist.",
+        // (char*)Var->Ident->Id.Value);
+        return;
     }
 
     if (!Var->Ident->IsMutable) {
-        THROW_ERROR(
+        /*THROW_ERROR(
             _SEMANTIC_ERROR, "Trying to modify constant variable '%s'.",
             (char*)Asgn->Ident->Id.Value
-        );
-        return false;
+        );*/
+        return;
     }
 
-    if (!GenExpr(Asgn->Expr)) { return false; }
+    GenExpr(Asgn->Expr);
 
     if (Var->Ident->IsInit) {
         PopStack("rax");
@@ -288,68 +320,46 @@ b8 GenAsgn(const NodeStmtAsgn* Asgn) {
         Var->Ident->IsInit = true;
         Var->StackIndex    = State->StackPtr++;
     }
-
-    return true;
 }
 
-b8 GenStmt(const NodeStmt* Stmt) {
-
+void GenStmt(const NodeStmt* Stmt) {
     switch (Stmt->Holds) {
+    case _ASGN: GenAsgn(Stmt->Asgn); break;
+    case _DECL: GenDecl(Stmt->Decl); break;
+    case _VAR_DEF: GenVarDef(Stmt->VarDef); break;
+    case _SCOPE: GenScope(Stmt->Scope); break;
+    case _FUN_DECL: GenFunDecl(Stmt->FunDecl); break;
+    case _FUN_DEF: GenFunDef(Stmt->FunDef); break;
+    case _CALL: GenCall(Stmt->Call); break;
+    case _STMT_EXIT: GenExit(Stmt->Exit); break;
+    case _STMT_IF: GenIf(Stmt->If); break;
+    case _STMT_FOR: GenFor(Stmt->For); break;
+    case _STMT_WHILE: GenWhile(Stmt->While); break;
 
-    case _EXIT: {
-        if (!GenExit(Stmt->Exit)) { return false; }
-    } break;
-    case _STMT_ASGN: {
-        if (!GenAsgn(Stmt->Asgn)) { return false; }
-    } break;
-    case _DECL: {
-        if (!GenDecl(Stmt->Decl)) { return false; }
-    } break;
-    case _VAR_DEF: {
-        if (!GenVarDef(Stmt->VarDef)) { return false; }
-    } break;
-    case _SCOPE: {
-        if (!GenScope(Stmt->Scope)) { return false; }
-    } break;
-    case _STMT_FOR: {
-        if (!GenFor(Stmt->For)) { return false; }
-    } break;
-    case _STMT_IF: {
-        if (!GenIf(Stmt->If)) { return false; }
-    } break;
-
-    default: THROW_ERROR(_SYNTAX_ERROR, "Invalid statement."); return false;
+    default: RUNTIME_ERR("No generator for statement type.");
     }
-
-    return true;
 }
 
-b8 GenRoot(const NodeRoot* Tree) {
-
-    for (u64 i = 0; i < Tree->StatsLen; ++i) {
+void GenRoot(const NodeRoot* Tree) {
+    for (u64 i = 0; i < Tree->StatCount; ++i) {
         NodeStmt* Stmt = Tree->Stats[i];
-
-        if (!GenStmt(Stmt)) { return false; }
+        GenStmt(Stmt);
     }
-
-    return true;
 }
 
-b8 Generate(const NodeRoot* Tree, char* AsmSource) {
-    if (!Tree) {
-        THROW_ERROR(_INVALID_ARG, "Null input AST.");
-        return false;
-    }
-    if (!AsmSource) {
-        THROW_ERROR(_INVALID_ARG, "Null output source string.");
-        return false;
-    }
+const char* Generate(const NodeRoot* Tree) {
+    if (!Tree) { ARG_ERR("Null input AST."); }
 
-    if (!InitGenerator(Tree)) { return false; }
-    if (!GenRoot(Tree)) { return false; }
+    InitGenerator(Tree);
+    GenRoot(Tree);
+
+    char* AsmSource = Alloc(
+        char, (strlen(State->DATA) + strlen(State->TEXT) + strlen(State->ROUT)) * sizeof(char)
+    );
 
     strcat(AsmSource, State->DATA);
     strcat(AsmSource, State->TEXT);
+    strcat(AsmSource, State->ROUT);
 
-    return true;
+    return AsmSource;
 }

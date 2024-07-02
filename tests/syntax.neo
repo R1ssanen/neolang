@@ -14,11 +14,10 @@ u8: main(i32: argc, i8[][]: argv) {
       close a scope. A scope must
   	  use one of these calls to
   	  mark its end. $
-
 	if true {
 		ret 10;
     }
-        
+ 
 	$ Static type system. $	
 	i64: _var = 7;
 	
@@ -40,7 +39,7 @@ u8: main(i32: argc, i8[][]: argv) {
     $ For-loop can iterate an
       interval construct, made
       with syntax 'begin..end' $
-    for u8: i; 0..13 {
+    for u8: i = 0 : [0..13] {
         put i;
     }
 

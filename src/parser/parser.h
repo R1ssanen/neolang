@@ -9,21 +9,22 @@
 
 #include "../lexer/token_types.h"
 #include "../types.h"
-#include "../util/error.h"
 
 typedef struct Parser {
-    Token* Tokens;
-    u64    TokensLen;
-    u64    TokenIndex;
+    const Token* Tokens;
+    u64          TokenCount;
+    u64          TokenIndex;
 } Parser;
 
-b8     InitParser(const Token* Tokens, u64 TokensLen);
+void InitParser(const Token* Tokens, u64 TokenCount);
 
-Token* Peek(u32 Offset);
+u64  GetIndex(void);
+void Rollback(u64 Offset)
 
-Token* Consume(void);
+    const Token* Peek(u32 Offset);
+const Token* Consume(void);
 
-Token* TryConsumeType(TokenType Type);
-Token* TryConsumeSub(TokenSubtype Sub);
+const Token* TryConsumeType(TokenType Type);
+const Token* TryConsumeSub(TokenSubtype Sub);
 
 #endif

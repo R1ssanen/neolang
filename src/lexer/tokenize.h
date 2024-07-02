@@ -7,9 +7,9 @@
 #ifndef TOKENIZE_H
 #define TOKENIZE_H
 
-#include "token_types.h"
 #include "types.h"
 
-b8 Tokenize(const char* Source, u64 SourceLen, Token* Tokens, u64* TokensLen);
+struct Token;
+struct Token* Tokenize(const char* Source, u64 SourceLen, u64* TokensLen);
 
 #endif

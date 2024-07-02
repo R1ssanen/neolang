@@ -6,6 +6,7 @@
 #include "debug/ast_output.h"
 #include "gen/generate.h"
 #include "lexer/tokenize.h"
+#include "limits.h"
 #include "parser/node_types.h"
 #include "parser/parse.h"
 #include "types.h"
@@ -14,20 +15,13 @@
 
 i32 main(i32 argc, char** argv) {
     clock_t ClockStart = clock();
-    InitMemArena(1024 * 1024 * 10);
-    InitErrors();
+    InitMemArena(1024 * 1024 * 50); // 50mib
 
-    if (argc <= 1) {
-        PRINT_ERROR(_INVALID_ARG, "No source file provided.");
-        return _INVALID_ARG;
-    }
+    if (argc <= 1) { ARG_ERR("No source file provided."); }
 
     const char* Filename = argv[1];
     FILE*       File     = fopen(Filename, "r");
-    if (!File) {
-        PRINT_ERROR(_RUNTIME_ERROR, "Could not open source file '%s', it may not exist.", Filename);
-        return _RUNTIME_ERROR;
-    }
+    if (!File) { RUNTIME_ERR("Could not open source file '%s', it may not exist.", Filename); }
 
     // get file length
     u64 FileLen = 0;
@@ -39,67 +33,41 @@ i32 main(i32 argc, char** argv) {
     char* Source = Alloc(char, FileLen + 1);
     fread(Source, sizeof(char), FileLen, File);
 
-    if (ferror(File) != 0) {
-        PRINT_ERROR(_RUNTIME_ERROR, "Cannot read file '%s'.", Filename);
-        return _RUNTIME_ERROR;
-    }
-
+    if (ferror(File) != 0) { RUNTIME_ERR("Cannot read file '%s'.", Filename); }
     fclose(File);
-    Source[FileLen++]    = '\0';
+    Source[FileLen++] = '\0';
 
-    const u64 MAX_TOKENS = 10000;
-    Token*    Tokens     = Alloc(Token, MAX_TOKENS);
-    u64       TokensLen  = 0;
+    u64    TokenCount = 0;
+    Token* Tokens     = Tokenize((const char*)Source, FileLen, &TokenCount);
 
-    if (!Tokenize((const char*)Source, FileLen, Tokens, &TokensLen)) {
-        PrintErrorStack();
-        return EXIT_FAILURE;
-    }
-
-    /*for (u64 i = 0; i < TokensLen; ++i) {
+    for (u64 i = 0; i < TokenCount; ++i) {
         printf(
             "\tType: %-10s Subtype: 0x%-10X Value: %-10s\n", GetTypeDebugName(Tokens[i].Type),
             Tokens[i].Subtype, (char*)Tokens[i].Value
         );
-    }*/
+    }
 
-    NodeRoot* Tree = Parse(Tokens, TokensLen);
+    NodeRoot* Tree = Parse(Tokens, TokenCount);
     if (!Tree) {
         PrintErrorStack();
+        DestroyMemArena();
         return EXIT_FAILURE;
     }
 
     // option to output syntax tree to json
     if (argc >= 3 && strcmp(argv[2], "-fout-ast") == 0) {
         const char* JsonPath = "bin/ast.json";
-
-        if (!OutputAST(Tree, JsonPath)) {
-            PrintErrorStack();
-            return EXIT_FAILURE;
-        }
+        OutputAST(Tree, JsonPath);
     }
 
-    const u64 MAX_ASM_LENGTH = 1010000;
-    char*     AsmSource      = Alloc(char, MAX_ASM_LENGTH);
+    const char* AsmSource = Generate(Tree);
 
-    if (!Generate(Tree, AsmSource)) {
-        PrintErrorStack();
-        return EXIT_FAILURE;
-    }
-
-    const char* AsmPath = "bin/out.asm"; // argv[2];
-    FILE*       AsmFile = fopen(AsmPath, "w");
-    if (!AsmFile) {
-        PRINT_ERROR(_RUNTIME_ERROR, "Could not open output file '%s' for write.", AsmPath);
-        return _RUNTIME_ERROR;
-    }
+    const char* AsmPath   = "bin/out.asm"; // argv[2];
+    FILE*       AsmFile   = fopen(AsmPath, "w");
+    if (!AsmFile) { RUNTIME_ERR("Could not open output file '%s' for write.", AsmPath); }
 
     fputs(AsmSource, AsmFile);
-
-    if (fclose(AsmFile) != 0) {
-        PRINT_ERROR(_RUNTIME_ERROR, "Could not close output file '%s'.", AsmPath);
-        return _RUNTIME_ERROR;
-    }
+    if (fclose(AsmFile) != 0) { RUNTIME_ERR("Could not close output file '%s'.", AsmPath); }
 
     system("nasm -felf64 bin/out.asm");
     system("ld -o bin/out bin/out.o");

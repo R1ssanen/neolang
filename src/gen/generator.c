@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../limits.h"
 #include "../parser/node_types.h"
 #include "../types.h"
 #include "../util/arena.h"
@@ -11,35 +12,30 @@
 
 Generator* State = NULL;
 
-b8         InitGenerator(const NodeRoot* Tree) {
-    if (!Tree) {
-        THROW_ERROR(_INVALID_ARG, "Null root node input.");
-        return false;
-    }
+void       InitGenerator(const NodeRoot* Tree) {
+    if (!Tree) { ARG_ERR("Null root node input."); }
 
-    State                      = Alloc(Generator, 1);
+    State       = Alloc(Generator, 1);
 
-    // initialize data section
-    const u64 MAX_DATASECT_LEN = 10000;
-    State->DATA                = Alloc(char, MAX_DATASECT_LEN);
+    // init data section
+    State->DATA = Alloc(char, MAX_DATASECT_LEN);
     DataEntry("SECTION .data\n");
 
-    // initialize text section
-    const u64 MAX_TEXTSECT_LEN = 1000000;
-    State->TEXT                = Alloc(char, MAX_TEXTSECT_LEN);
+    // init text section
+    State->TEXT = Alloc(char, MAX_TEXTSECT_LEN);
     TextEntry("\nSECTION .text\nglobal _start\n_start:\n");
 
-    const u64 MAX_STACK_VARIABLES = 1000;
-    State->VarRegistry            = Alloc(Variable, MAX_STACK_VARIABLES);
-    State->Tree                   = (NodeRoot*)Tree;
-    State->VarCount               = 0;
-    State->StackPtr               = 0;
+    // init routine section
+    State->ROUT = Alloc(char, MAX_ROUTSECT_LEN);
+    RoutEntry("\n");
 
-    const u64 MAX_SCOPES          = 100;
-    State->ScopeRegistry          = Alloc(u64, MAX_SCOPES);
-    State->ScopeCount             = 0;
+    State->VarRegistry   = Alloc(Variable, MAX_STACK_VARS);
+    State->Tree          = (NodeRoot*)Tree;
+    State->VarCount      = 0;
+    State->StackPtr      = 0;
 
-    return true;
+    State->ScopeRegistry = Alloc(u64, MAX_SCOPES);
+    State->ScopeCount    = 0;
 }
 
 void PushStack(const char* Register) {

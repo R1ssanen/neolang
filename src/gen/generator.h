@@ -22,6 +22,7 @@ typedef struct Variable {
 typedef struct Generator {
     char*            DATA;
     char*            TEXT;
+    char*            ROUT;
 
     struct NodeRoot* Tree;
 
@@ -37,7 +38,7 @@ typedef struct Generator {
 
 extern Generator* State;
 
-b8                InitGenerator(const struct NodeRoot* Tree);
+void              InitGenerator(const struct NodeRoot* Tree);
 
 #define DataEntry(...)                                                                             \
     {                                                                                              \
@@ -51,6 +52,13 @@ b8                InitGenerator(const struct NodeRoot* Tree);
         char t[100];                                                                               \
         sprintf(t, __VA_ARGS__);                                                                   \
         strcat(State->TEXT, t);                                                                    \
+    }
+
+#define RoutEntry(...)                                                                             \
+    {                                                                                              \
+        char t[100];                                                                               \
+        sprintf(t, __VA_ARGS__);                                                                   \
+        strcat(State->ROUT, t);                                                                    \
     }
 
 void      PushStack(const char* Register);
