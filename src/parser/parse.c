@@ -1,6 +1,5 @@
 #include "parse.h"
 
-#include <assert.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -10,6 +9,7 @@
 #include "../limits.h"
 #include "../types.h"
 #include "../util/arena.h"
+#include "../util/assert.h"
 #include "../util/error.h"
 #include "node_types.h"
 #include "parser.h"
@@ -211,7 +211,7 @@ NodeExpr* TryParseBinExpr(u8 MinPrec) {
     return Expr;
 }
 
-NodeExpr* TryParseExpr() {
+NodeExpr* TryParseExpr(void) {
     NodeExpr*     Expr     = NULL;
 
     NodeInterval* Interval = TryParseInterval();
@@ -331,20 +331,13 @@ NodeScope* TryParseScope(void) {
     if (!TryConsumeSub(_SPEC_LBRACE)) { return NULL; }
 
     NodeStmt*  Stats[MAX_SCOPE_STATS];
-
     NodeScope* Scope = Alloc(NodeScope, 1);
     Scope->StatCount = 0;
 
     while (Peek(0) && Peek(0)->Subtype != _SPEC_RBRACE) {
         NodeStmt* Stmt = TryParseStmt();
 
-        if (!Stmt) {
-            // SYNTAX_ERR("Could not parse statement for scope.");
-            // return NULL;
-            continue;
-        }
-
-        Stats[Scope->StatCount++] = Stmt;
+        if (Stmt) { Stats[Scope->StatCount++] = Stmt; }
     }
 
     if (!TryConsumeSub(_SPEC_RBRACE)) {
@@ -434,22 +427,22 @@ NodeStmt* TryParseStmt(void) {
 
     if ((Stmt->For = TryParseFor())) {
         Stmt->Holds = _STMT_FOR;
-        return Stmt;
+    }
+
+    else if ((Stmt->VarDef = TryParseVarDef())) {
+        Stmt->Holds = _VAR_DEF;
     }
 
     else if ((Stmt->If = TryParseIf())) {
         Stmt->Holds = _STMT_IF;
-        return Stmt;
     }
 
     else if ((Stmt->While = TryParseWhile())) {
         Stmt->Holds = _STMT_WHILE;
-        return Stmt;
     }
 
     else if ((Stmt->Scope = TryParseScope())) {
         Stmt->Holds = _SCOPE;
-        return Stmt;
     }
 
     else if ((Stmt->Exit = TryParseExit())) {
@@ -458,10 +451,6 @@ NodeStmt* TryParseStmt(void) {
 
     else if ((Stmt->Asgn = TryParseAsgn())) {
         Stmt->Holds = _ASGN;
-    }
-
-    else if ((Stmt->VarDef = TryParseVarDef())) {
-        Stmt->Holds = _VAR_DEF;
     }
 
     else if ((Stmt->Decl = TryParseDecl())) {
@@ -481,12 +470,19 @@ NodeStmt* TryParseStmt(void) {
     }
 
     else {
-        printf("%s, [%lu, %lu]\n", (char*)Peek(0)->Value, Peek(0)->Line, Peek(0)->Column);
+        SYNTAX_ERR(
+            "Invalid statement. [%lu, %lu]", Peek(0) ? Peek(0)->Line : 0,
+            Peek(0) ? Peek(0)->Column : 0
+        );
+
+        // skip to beginning of next statement
+        while (Peek(0) && Consume()->Subtype != _SPEC_SEMI);
         return NULL;
     }
 
     if (!TryConsumeSub(_SPEC_SEMI)) {
-        SYNTAX_ERR("Missing semicolon. [%lu, %lu]", Peek(0)->Line, Peek(0)->Column);
+        SYNTAX_ERR("Missing semicolon.");
+        return NULL;
     }
 
     return Stmt;
@@ -499,7 +495,9 @@ NodeRoot* TryParseRoot(void) {
 
     b8 HasErrors    = false;
     while (Peek(0)) {
-        assert(Tree->StatCount < MAX_NODE_STATS && "Max statement count exceeded.");
+        if (Tree->StatCount >= MAX_NODE_STATS) {
+            RUNTIME_ERR("Max statement count of %u exceeded.", MAX_NODE_STATS);
+        }
 
         NodeStmt* Stmt = TryParseStmt();
         if (!Stmt) {
@@ -514,7 +512,7 @@ NodeRoot* TryParseRoot(void) {
 }
 
 NodeRoot* Parse(const Token* Tokens, u64 TokenCount) {
-    if (!Tokens) { ARG_ERR("No tokens to parse."); }
+    NASSERT_MSG(Tokens, "Null input tokens.");
 
     InitParser(Tokens, TokenCount);
     return TryParseRoot();

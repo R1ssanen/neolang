@@ -22,11 +22,12 @@ add_executable(
   "src/util/arena.c"
   "src/util/error.c"
   "src/debug/ast_output.c"
-  "src/debug/jWrite.c")
+  "src/debug/jWrite.c"
+  "src/checker/check.c")
 
 set_target_properties(
   ${PROJECT_NAME}
-  PROPERTIES C_STANDARD 17
+  PROPERTIES C_STANDARD 11
              C_STANDARD_REQUIRED TRUE
              LINKER_LANGUAGE C
              VERSION ${PROJECT_VERSION})

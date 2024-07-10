@@ -1,9 +1,9 @@
-$ neolang testfile $
+$$ neolang testfile
 
-u8: var N = 1;
+u8: var v = 3;
 
-for u8: I = 0 : [0, 10] {
-    N = I;
-}
+for u8: i = 0 : [0,10] {
+    v = i;
+};
 
-exit N;
+exit v;

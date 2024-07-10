@@ -3,9 +3,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "../limits.h"
 #include "../parser/node_types.h"
 #include "../types.h"
-#include "../util/error.h"
+#include "../util/assert.h"
 #include "jWrite.h"
 
 void OutputIf(const NodeStmtIf* If) {
@@ -208,13 +209,12 @@ void OutputStmt(const NodeStmt* Stmt) {
     jwEnd();
 }
 
-#include "../limits.h"
-
 void OutputAST(const NodeRoot* Tree, const char* Filename) {
-    if (!Tree) { ARG_ERR("Null input AST."); }
+    NASSERT_MSG(Tree, "Null input AST.");
+    NASSERT_MSG(Filename, "Null input filename.");
 
     char AST[MAX_AST_JSON_FILESIZE];
-    jwOpen(AST, MAX_AST_JSON_FILESIZE, JW_ARRAY, JW_PRETTY);
+    jwOpen(AST, MAX_AST_JSON_FILESIZE, JW_ARRAY, JW_COMPACT);
 
     for (u32 i = 0; i < Tree->StatCount; ++i) { OutputStmt(Tree->Stats[i]); }
 
@@ -224,7 +224,7 @@ void OutputAST(const NodeRoot* Tree, const char* Filename) {
     FILE* JsonFile = fopen(Filename, "w");
     if (!JsonFile) { RUNTIME_ERR("Could not open output file '%s' for write.", Filename); }
 
-    puts(AST);
+    // puts(AST);
     fputs(AST, JsonFile);
 
     if (fclose(JsonFile) != 0) { RUNTIME_ERR("Could not close output file '%s'.", Filename); }

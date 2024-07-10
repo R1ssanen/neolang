@@ -67,7 +67,7 @@ typedef enum TokenSubtype {
     _NUMLIT_DOUBL = 0x40000004
 } TokenSubtype;
 
-extern const TokenSubtype KEYSUBTYPES[];
-extern const TokenSubtype BISUBTYPES[];
+extern const TokenSubtype KEY_SUBTYPES[];
+extern const TokenSubtype BITYPE_SUBTYPES[];
 
 #endif

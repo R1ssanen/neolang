@@ -8,12 +8,12 @@
 #include "../parser/node_types.h"
 #include "../types.h"
 #include "../util/arena.h"
-#include "../util/error.h"
+#include "../util/assert.h"
 
 Generator* State = NULL;
 
 void       InitGenerator(const NodeRoot* Tree) {
-    if (!Tree) { ARG_ERR("Null root node input."); }
+    NASSERT_MSG(Tree, "Null root node input.");
 
     State       = Alloc(Generator, 1);
 

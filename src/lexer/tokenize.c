@@ -7,22 +7,31 @@
 #include "../limits.h"
 #include "../types.h"
 #include "../util/arena.h"
+#include "../util/assert.h"
 #include "../util/error.h"
 #include "lexer.h"
 #include "token_subtypes.h"
 #include "token_types.h"
 
-Token* Tokenize(const char* Source, u64 SourceLen, u64* TokenCount) {
-    if (!Source) { ARG_ERR("No source string to tokenize."); }
-    if (!TokenCount) { ARG_ERR("Null output paratemer."); }
+Token* Tokenize(const char* Source, u64* TokenCount) {
+    NASSERT_MSG(Source, "Null source string.");
+    NASSERT_MSG(TokenCount, "Null output token count.")
 
-    InitLexer(Source, SourceLen);
+    InitLexer(Source, strlen(Source));
     Token Tokens[MAX_TOKENS];
 
     while (PeekChar(0)) {
-        assert((*TokenCount) < MAX_TOKENS && "Max token count exceeded.");
+        if ((*TokenCount) >= MAX_TOKENS) {
+            RUNTIME_ERR("Max token count of %u exceeded.", MAX_TOKENS);
+        }
 
-        if (TryConsumeChar('$')) { while (PeekChar(0) && ConsumeChar() != '$'); }
+        if (TryConsumeChar('$')) {
+            if (TryConsumeChar('$')) {
+                while (PeekChar(0) && ConsumeChar() != '\n'); // single line
+            } else {
+                while (PeekChar(0) && ConsumeChar() != '$'); // multiline
+            }
+        }
         if (isspace(PeekChar(0))) {
             ConsumeChar();
             continue;
@@ -63,7 +72,9 @@ Token* Tokenize(const char* Source, u64 SourceLen, u64* TokenCount) {
             b8   HasDecimal = false;
 
             while (PeekChar(0) && (isdigit(PeekChar(0)) || (PeekChar(0) == '.'))) {
-                assert(NumLen < MAX_LIT_CHARS && "Max literal length exceeded.");
+                if (NumLen >= MAX_LIT_CHARS) {
+                    RUNTIME_ERR("Max literal length of %u exceeded.", MAX_LIT_CHARS);
+                }
 
                 if (PeekChar(0) == '.') {
                     if (HasDecimal) { break; }
@@ -91,7 +102,9 @@ Token* Tokenize(const char* Source, u64 SourceLen, u64* TokenCount) {
             u64  StrLen = 0;
 
             while (PeekChar(0) && PeekChar(0) != '"') {
-                assert(StrLen < MAX_LIT_CHARS && "Max literal length exceeded.");
+                if (StrLen >= MAX_LIT_CHARS) {
+                    RUNTIME_ERR("Max literal length of %u exceeded.", MAX_LIT_CHARS);
+                }
 
                 StrLit[StrLen++] = ConsumeChar();
             }
@@ -114,7 +127,9 @@ Token* Tokenize(const char* Source, u64 SourceLen, u64* TokenCount) {
             u64  IdentLen = 0;
 
             while (PeekChar(0) && (isalnum(PeekChar(0)) || PeekChar(0) == '_')) {
-                assert(IdentLen < MAX_LIT_CHARS && "Max literal length exceeded.");
+                if (IdentLen >= MAX_LIT_CHARS) {
+                    RUNTIME_ERR("Max literal length of %u exceeded.", MAX_LIT_CHARS);
+                }
 
                 Ident[IdentLen++] = ConsumeChar();
             }
@@ -131,7 +146,7 @@ Token* Tokenize(const char* Source, u64 SourceLen, u64* TokenCount) {
                 if (strcmp(Ident, KEYWORDS[i]) != 0) { continue; }
 
                 Token.Type    = _KEY;
-                Token.Subtype = KEYSUBTYPES[i];
+                Token.Subtype = KEY_SUBTYPES[i];
 
                 break;
             }
@@ -140,7 +155,7 @@ Token* Tokenize(const char* Source, u64 SourceLen, u64* TokenCount) {
                 if (strcmp(Ident, BITYPES[i]) != 0) { continue; }
 
                 Token.Type    = _BITYPE;
-                Token.Subtype = BISUBTYPES[i];
+                Token.Subtype = BITYPE_SUBTYPES[i];
 
                 break;
             }
@@ -148,7 +163,7 @@ Token* Tokenize(const char* Source, u64 SourceLen, u64* TokenCount) {
             Tokens[(*TokenCount)++] = Token;
         }
 
-        else {
+        else { // unknown token
             ConsumeChar();
         }
     }

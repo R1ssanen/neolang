@@ -6,12 +6,12 @@
 
 #include "../types.h"
 #include "../util/arena.h"
-#include "../util/error.h"
+#include "../util/assert.h"
 
 static Lexer* State = NULL;
 
 void          InitLexer(const char* Source, u64 SourceLen) {
-    if (!Source) { ARG_ERR("Null source input."); }
+    NASSERT_MSG(Source, "Null source string.");
 
     State  = Alloc(Lexer, 1);
     *State = (Lexer){ .Source = Source, .SourceLen = SourceLen, .Line = 1, .Column = 1 };
@@ -24,7 +24,7 @@ char PeekChar(u64 Offset) {
 
 char ConsumeChar(void) {
     ++State->Column;
-    if (strchr("\n\f\r", State->Source[State->Index])) {
+    if (State->Source[State->Index] == '\n') {
         ++State->Line;
         State->Column = 1;
     }

@@ -10,6 +10,6 @@
 #include "types.h"
 
 struct Token;
-struct Token* Tokenize(const char* Source, u64 SourceLen, u64* TokensLen);
+struct Token* Tokenize(const char* Source, u64* TokensLen);
 
 #endif

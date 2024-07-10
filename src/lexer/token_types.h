@@ -12,6 +12,8 @@ extern const char* OPERATORS;
 extern const char* KEYWORDS[];
 extern const char* BITYPES[];
 
+extern const char* TOKEN_DEBUG_NAMES[];
+
 typedef enum TokenType {
     _INVALID = 0,
 
@@ -23,8 +25,6 @@ typedef enum TokenType {
     _SPEC,
     _BITYPE,
 } TokenType;
-
-const char* GetTypeDebugName(TokenType Type);
 
 #include "../types.h"
 #include "token_subtypes.h"

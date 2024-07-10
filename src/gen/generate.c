@@ -7,7 +7,7 @@
 
 #include "../parser/node_types.h"
 #include "../types.h"
-#include "../util/error.h"
+#include "../util/assert.h"
 #include "generator.h"
 
 static const char* WORDSIZE[] = { [1] = "BYTE", [2] = "WORD", [4] = "DWORD", [8] = "QWORD" };
@@ -348,7 +348,7 @@ void GenRoot(const NodeRoot* Tree) {
 }
 
 const char* Generate(const NodeRoot* Tree) {
-    if (!Tree) { ARG_ERR("Null input AST."); }
+    NASSERT_MSG(Tree, "Null input root node.");
 
     InitGenerator(Tree);
     GenRoot(Tree);

@@ -1,3 +1,9 @@
+/**
+ * @file lexer/lexer.h
+ * @brief Lexer internal state.
+ * @author github.com/r1ssanen
+ */
+
 #ifndef LEXER_H
 #define LEXER_H
 

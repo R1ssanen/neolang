@@ -1,6 +1,6 @@
 /**
  * @file parser/node_types.h
- * @brief Abstract syntax tree nodes.
+ * @brief Abstract syntax tree node types.
  * @author github.com/r1ssanen
  */
 

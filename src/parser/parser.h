@@ -11,20 +11,16 @@
 #include "../types.h"
 
 typedef struct Parser {
-    const Token* Tokens;
-    u64          TokenCount;
-    u64          TokenIndex;
+    Token* Tokens;
+    u64    TokenCount;
+    u64    TokenIndex;
 } Parser;
 
-void InitParser(const Token* Tokens, u64 TokenCount);
+void   InitParser(const Token* Tokens, u64 TokenCount);
 
-u64  GetIndex(void);
-void Rollback(u64 Offset)
-
-    const Token* Peek(u32 Offset);
-const Token* Consume(void);
-
-const Token* TryConsumeType(TokenType Type);
-const Token* TryConsumeSub(TokenSubtype Sub);
+Token* Peek(u32 Offset);
+Token* Consume(void);
+Token* TryConsumeType(TokenType Type);
+Token* TryConsumeSub(TokenSubtype Sub);
 
 #endif

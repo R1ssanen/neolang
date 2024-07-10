@@ -1,6 +1,8 @@
 $ This is the neolang interpreter testfile.
   This is a comment block. Everything within
-  the signs is treated as comments. $
+  the signs is treated as comments. $ 
+
+$$ This is a single line comment.
 
 $ Entry point.
   Takes argument count as 32-bit integer,

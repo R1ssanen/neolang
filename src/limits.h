@@ -2,18 +2,19 @@
 #define LIMITS_H
 
 // errors
-#define MAX_ERRORS      254
+#define MAX_ERRORS        254
+#define MAX_ERROR_MSG_LEN 254
 
 // lexing
-#define MAX_LIT_CHARS   254
-#define MAX_TOKENS      100000
+#define MAX_LIT_CHARS     254
+#define MAX_TOKENS        100000
 
 // parsing
-#define MAX_NODE_STATS  10000
-#define MAX_SCOPE_STATS 5000
-#define MAX_STACK_VARS  1000
-#define MAX_SCOPES      254
-#define MAX_FUN_ARGS    100
+#define MAX_NODE_STATS    10000
+#define MAX_SCOPE_STATS   5000
+#define MAX_STACK_VARS    1000
+#define MAX_SCOPES        254
+#define MAX_FUN_ARGS      100
 
 // gen
 #include "types.h"
