@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.28)
+cmake_minimum_required(VERSION 3.30)
 project(
   neolang
   VERSION 24.1.0
@@ -21,6 +21,7 @@ add_executable(
   "src/gen/generator.c"
   "src/util/arena.c"
   "src/util/error.c"
+  "src/util/hash.c"
   "src/debug/ast_output.c"
   "src/debug/jWrite.c"
   "src/checker/check.c")

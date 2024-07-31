@@ -23,10 +23,11 @@ char PeekChar(u64 Offset) {
 }
 
 char ConsumeChar(void) {
-    ++State->Column;
     if (State->Source[State->Index] == '\n') {
         ++State->Line;
         State->Column = 1;
+    } else {
+        ++State->Column;
     }
 
     return State->Source[State->Index++];

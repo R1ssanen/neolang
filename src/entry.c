@@ -7,12 +7,10 @@
 #include "debug/ast_output.h"
 #include "gen/generate.h"
 #include "lexer/tokenize.h"
-#include "limits.h"
 #include "parser/node_types.h"
 #include "parser/parse.h"
 #include "types.h"
 #include "util/arena.h"
-#include "util/assert.h"
 #include "util/error.h"
 
 static clock_t ClockStart;
@@ -21,12 +19,12 @@ void           Cleanup(void) {
     PrintErrorStack();
     DestroyMemArena();
 
-    printf("\nCompilation ended: %fs\n", (f64)(clock() - ClockStart) / CLOCKS_PER_SEC);
+    printf("\nCompilation ended: %gs\n", (f64)(clock() - ClockStart) / CLOCKS_PER_SEC);
 }
 
 i32 main(i32 argc, char** argv) {
     ClockStart = clock();
-    InitMemArena(1024 * 1024 * 50); // 50mib
+    InitMemArena(1024 * 1024 * 25); // 50MiB
 
     if (atexit(Cleanup) != 0) { RUNTIME_ERR("Failed to register cleanup."); }
     if (argc <= 1) { RUNTIME_ERR("No source file provided."); }

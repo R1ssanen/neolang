@@ -117,7 +117,6 @@ typedef struct NodeVarDef {
 typedef struct NodeScope {
     struct NodeStmt** Stats;
     u64               StatCount;
-    u32               ScopeID;
 } NodeScope;
 
 typedef struct NodeInterval {

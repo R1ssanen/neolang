@@ -1,12 +1,12 @@
 #include "generate.h"
 
-#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "../parser/node_types.h"
 #include "../types.h"
+#include "../util/arena.h"
 #include "../util/assert.h"
 #include "generator.h"
 
@@ -43,11 +43,11 @@ void GenWhile(const NodeStmtWhile* While) {
     EndScope();
 }
 
-void GenFunDef(const NodeFunDef* FunDef) { assert(false && "Unimplemented"); }
+void GenFunDef(const NodeFunDef* FunDef) { NASSERT_MSG(false, "Unimplemented"); }
 
-void GenFunDecl(const NodeFunDecl* FunDecl) { assert(false && "Unimplented"); }
+void GenFunDecl(const NodeFunDecl* FunDecl) { NASSERT_MSG(false, "Unimplented"); }
 
-void GenCall(const NodeCall* Call) { assert(false && "Unimplemented"); }
+void GenCall(const NodeCall* Call) { NASSERT_MSG(false, "Unimplemented"); }
 
 void GenInterval(const NodeInterval* Interval) {
     TextEntry("\t\t; interval\n");

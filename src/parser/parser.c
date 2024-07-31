@@ -19,8 +19,10 @@ void           InitParser(const Token* Tokens, u64 TokenCount) {
 }
 
 Token* Peek(u32 Offset) {
-    if ((State->TokenIndex + Offset) >= State->TokenCount) { return NULL; }
-    return State->Tokens + (State->TokenIndex + Offset);
+    u64 TotalOffset = State->TokenIndex + Offset;
+
+    if (TotalOffset >= State->TokenCount) { return NULL; }
+    return State->Tokens + TotalOffset;
 }
 
 Token* Consume(void) { return State->Tokens + (State->TokenIndex++); }

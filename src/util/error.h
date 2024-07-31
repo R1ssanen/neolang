@@ -7,10 +7,7 @@
 #ifndef ERROR_H
 #define ERROR_H
 
-#include <stdio.h>
 #include <stdlib.h>
-
-#include "../util/arena.h"
 
 typedef enum ErrCode {
     _UNKNOWN        = 0,

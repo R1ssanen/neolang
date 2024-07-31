@@ -7,7 +7,7 @@
 #ifndef ARENA_H
 #define ARENA_H
 
-#include "types.h"
+#include "../types.h"
 
 typedef struct Arena {
     void* Block;
@@ -15,11 +15,10 @@ typedef struct Arena {
     u64   SizeBytes;
 } Arena;
 
-b8    InitMemArena(u64 Bytes);
-
+void  InitMemArena(u64 Bytes);
 void  DestroyMemArena(void);
 
-void* _Alloc(u64 Stride);
+void* _Alloc(u64 Bytes);
 
 #define Alloc(type, count) (type*)(_Alloc(count * sizeof(type)))
 
